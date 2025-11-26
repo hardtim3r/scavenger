@@ -2,246 +2,241 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>Scavenger Hunt – Wijzer</title>
+  <title>Scavenger Hunt – Locatie-opdracht</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
-      margin: 0;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #050814;
       color: #f7f7ff;
-      font-family: system-ui, sans-serif;
+      margin: 0;
+      padding: 16px;
       display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      overflow: hidden;
+      min-height: 100vh;
+      box-sizing: border-box;
     }
 
-    .compass-wrapper {
-      position: relative;
-      width: 300px;
-      height: 300px;
+    .wrapper {
+      margin: auto;
+      max-width: 480px;
+      text-align: center;
     }
 
-    /* Buitenring met glow */
-    .ring {
-      position: absolute;
-      width: 300px;
-      height: 300px;
-      border-radius: 50%;
-      border: 2px solid rgba(180,160,255,0.3);
-      box-shadow:
-        0 0 30px rgba(160,120,255,0.25),
-        inset 0 0 30px rgba(120,80,255,0.25);
-      animation: pulse 4s ease-in-out infinite;
-      top: 0;
-      left: 0;
+    .card {
+      background: rgba(15, 18, 40, 0.92);
+      border-radius: 24px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px);
     }
 
-    @keyframes pulse {
-      0%   { box-shadow: inset 0 0 25px rgba(140,90,255,0.15); }
-      50%  { box-shadow: inset 0 0 45px rgba(190,120,255,0.35); }
-      100% { box-shadow: inset 0 0 25px rgba(140,90,255,0.15); }
+    .riddle {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-bottom: 16px;
+      opacity: 0.96;
+      cursor: pointer; /* zodat triple tap logisch voelt */
     }
 
-    /* Wijzer (naald) – draait om het punt in het midden */
-    .needle {
-      position: absolute;
-      width: 4px;
-      height: 120px;
-      background: #ffffff;
-      top: 50%;
-      left: 50%;
-      /* GEEN transform hier, die zetten we in JS zodat translate + rotate samen gaan */
-      transform-origin: 50% 100%; /* onderste punt is het draaipunt */
-      border-radius: 2px;
-      filter: drop-shadow(0 0 10px #a985ff);
-      transition: transform 0.12s linear;
-    }
-
-    /* stip in het midden */
-    .center-dot {
-      position: absolute;
-      width: 14px;
-      height: 14px;
-      background: #ffffff;
-      border-radius: 50%;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      box-shadow: 0 0 10px rgba(255,255,255,0.6);
+    .hint {
+      font-size: 0.85rem;
+      opacity: 0.85;
+      margin-top: 8px;
+      line-height: 1.4;
     }
 
     .status {
-      position: absolute;
-      bottom: -60px;
-      width: 100%;
-      text-align: center;
-      font-size: 14px;
-      opacity: 0.9;
+      font-size: 0.9rem;
+      margin-top: 13px;
+      min-height: 1.4em;
+    }
+
+    .attempts {
+      font-size: 0.8rem;
+      opacity: 0.7;
+      margin-top: 4px;
     }
 
     button {
-      position: absolute;
-      bottom: -10px;
-      left: 50%;
-      transform: translateX(-50%);
       border: none;
       border-radius: 999px;
       padding: 12px 24px;
-      font-size: 16px;
-      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 16px;
       background: linear-gradient(135deg, #ffb3ff, #9f9cff);
       color: #141414;
-      cursor: pointer;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    #continue-btn {
       display: none;
     }
 
-    button:active {
-      transform: translateX(-50%) scale(0.96);
+    /* DEV-SKIP knop */
+    #dev-skip {
+      display: none;
+      margin-top: 10px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-size: 14px;
     }
   </style>
 </head>
 <body>
+  <div class="wrapper">
+    <div class="card">
 
-  <div class="compass-wrapper">
-    <div class="ring"></div>
-    <div id="needle" class="needle"></div>
-    <div class="center-dot"></div>
+      <p id="riddle" class="riddle">
+        <em>“Ga naar de plek waar stilte en geluid elkaar voor het eerst echt ontmoetten.”</em>
+      </p>
 
-    <p id="status" class="status">Locatie & richting worden geladen…</p>
+      <button id="dev-skip">DEV: Skip naar volgende</button>
 
-    <button id="continue-btn">Ga verder</button>
+      <p class="hint">
+        Sta op de plek waar jij denkt dat dit over gaat,<br/>
+        en dien daarna je locatie in.
+      </p>
+
+      <button id="submit-btn">Dien locatie in</button>
+
+      <p id="status" class="status"></p>
+      <p id="attempts" class="attempts"></p>
+
+      <button id="continue-btn">Ga verder</button>
+    </div>
   </div>
 
   <script>
-    /* ========= CONFIG ========= */
-    const TARGET_LAT = 51.4500556;
-    const TARGET_LON = 5.454944;
-    const UNLOCK_RADIUS_METERS = 40;
-    const NEXT_URL = "eind.html"; // <-- aanpassen naar jouw volgende pagina
+    // ========= CONFIG =========
+    const TARGET_LAT = 51.000000;  // <-- vervang
+    const TARGET_LON = 5.000000;   // <-- vervang
+    const RADIUS_METERS = 10;
+    const MAX_ATTEMPTS = 3;
 
-    /* ========= STATE ========= */
-    const needle = document.getElementById('needle');
-    const statusEl = document.getElementById('status');
-    const continueBtn = document.getElementById('continue-btn');
+    const NEXT_URL = "kompas.html";
 
-    let heading = null;
-    let userLat = null;
-    let userLon = null;
-    let targetBearing = null;
-    let distanceToTarget = null;
-    let unlocked = false;
+    // ========= STATE =========
+    const submitBtn = document.getElementById("submit-btn");
+    const statusEl = document.getElementById("status");
+    const attemptsEl = document.getElementById("attempts");
+    const continueBtn = document.getElementById("continue-btn");
+    const devSkipBtn = document.getElementById("dev-skip");
+    const riddleEl = document.getElementById("riddle");
 
-    /* ========= HELPERS ========= */
-    function toRad(x){return x*Math.PI/180;}
-    function toDeg(x){return x*180/Math.PI;}
+    let attemptsUsed = 0;
+    let finished = false;
+    let devEnabled = false;
 
-    function distanceInMeters(lat1, lon1, lat2, lon2){
-      const R=6371000;
-      const dLat=toRad(lat2-lat1);
-      const dLon=toRad(lon2-lon1);
-      const a=
-        Math.sin(dLat/2)**2 +
-        Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) *
-        Math.sin(dLon/2)**2;
-      return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    // ========= HELPERS =========
+    function toRad(x) { return x * Math.PI / 180; }
+
+    function distanceInMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
     }
 
-    function bearingDegrees(lat1, lon1, lat2, lon2){
-      const φ1=toRad(lat1);
-      const φ2=toRad(lat2);
-      const dLon=toRad(lon2-lon1);
-      const y=Math.sin(dLon)*Math.cos(φ2);
-      const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(dLon);
-      return (toDeg(Math.atan2(y,x))+360)%360;
+    function updateAttemptsText() {
+      const left = Math.max(0, MAX_ATTEMPTS - attemptsUsed);
+      attemptsEl.textContent = `Pogingen over: ${left} van de ${MAX_ATTEMPTS}`;
     }
 
-    // Wijzer updaten: altijd translate + rotate samen, zodat hij in het midden blijft
-    function updateNeedle(){
-      if (heading == null || targetBearing == null) return;
-      const diff = (targetBearing - heading + 360) % 360;
-      needle.style.transform = `translate(-50%, -100%) rotate(${diff}deg)`;
+    function lockOut() {
+      submitBtn.disabled = true;
+      statusEl.textContent = "Geen pogingen meer.";
     }
 
-    function checkUnlock(){
-      if (unlocked) return;
-      if (distanceToTarget != null && distanceToTarget <= UNLOCK_RADIUS_METERS){
-        unlocked = true;
-        statusEl.textContent = "Dit klopt. 🌙";
-        continueBtn.style.display = "inline-block";
-      }
+    function handleSuccess() {
+      finished = true;
+      submitBtn.disabled = true;
+      statusEl.textContent = "Dit klopt. 🌙";
+      continueBtn.style.display = "inline-block";
     }
 
-    /* ========= GEO ========= */
-    function startGeo(){
-      if (!navigator.geolocation){
-        statusEl.textContent="Geen GPS beschikbaar.";
+    // ========= LOCATIE-LOGICA =========
+    submitBtn.addEventListener("click", () => {
+      if (finished) return;
+
+      if (attemptsUsed >= MAX_ATTEMPTS) {
+        lockOut();
         return;
       }
 
-      navigator.geolocation.watchPosition(
-        pos=>{
-          userLat = pos.coords.latitude;
-          userLon = pos.coords.longitude;
-
-          distanceToTarget = distanceInMeters(userLat,userLon,TARGET_LAT,TARGET_LON);
-          targetBearing = bearingDegrees(userLat,userLon,TARGET_LAT,TARGET_LON);
-
-          if (!unlocked) statusEl.textContent = "";
-          updateNeedle();
-          checkUnlock();
-        },
-        err=>{
-          statusEl.textContent="GPS werkt niet goed.";
-        },
-        {enableHighAccuracy:true, timeout:10000, maximumAge:1000}
-      );
-    }
-
-    /* ========= COMPASS ========= */
-    function startCompass(){
-      if (typeof DeviceOrientationEvent === "undefined"){
-        statusEl.textContent="Geen kompas-toegang.";
+      if (!navigator.geolocation) {
+        statusEl.textContent = "Locatie niet beschikbaar.";
         return;
       }
 
-      function onOrientation(ev){
-        if (ev.webkitCompassHeading != null){
-          heading = ev.webkitCompassHeading;
-        } else if (ev.alpha != null){
-          heading = ev.alpha;
-        }
-        updateNeedle();
-      }
+      statusEl.textContent = "Locatie wordt gecontroleerd…";
 
-      if (typeof DeviceOrientationEvent.requestPermission === "function"){
-        DeviceOrientationEvent.requestPermission()
-          .then(resp=>{
-            if (resp==="granted"){
-              window.addEventListener("deviceorientation", onOrientation, true);
-              // status wordt door GPS verder bijgewerkt
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          attemptsUsed++;
+          updateAttemptsText();
+
+          const lat = pos.coords.latitude;
+          const lon = pos.coords.longitude;
+          const dist = distanceInMeters(lat, lon, TARGET_LAT, TARGET_LON);
+
+          if (dist <= RADIUS_METERS) {
+            handleSuccess();
+          } else {
+            if (attemptsUsed >= MAX_ATTEMPTS) {
+              lockOut();
             } else {
-              statusEl.textContent="Kompas-toegang geweigerd.";
+              statusEl.textContent = `Fout, je zit er ${Math.round(dist)} meter vandaan.`;
             }
-          })
-          .catch(()=>statusEl.textContent="Kompas-toegang mislukt.");
-      } else {
-        window.addEventListener("deviceorientation", onOrientation, true);
-      }
-    }
+          }
+        },
+        err => {
+          statusEl.textContent = "Locatie ophalen mislukt.";
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    });
 
-    /* ========= INIT ========= */
-
-    // Initieel zorgen dat de wijzer al netjes in het midden staat (zonder rotatie)
-    needle.style.transform = "translate(-50%, -100%) rotate(0deg)";
-
-    startGeo();
-    startCompass();
-
-    continueBtn.addEventListener("click", ()=>{
+    continueBtn.addEventListener("click", () => {
       window.location.href = NEXT_URL;
     });
+
+    // ========= DEV MODE (triple tap) =========
+    let tapTimes = [];
+
+    riddleEl.addEventListener("click", () => {
+      const now = Date.now();
+      tapTimes.push(now);
+
+      if (tapTimes.length > 3) tapTimes.shift();
+
+      if (tapTimes.length === 3 && tapTimes[2] - tapTimes[0] < 900) {
+        devEnabled = true;
+        devSkipBtn.style.display = "inline-block";
+        statusEl.textContent = "(DEV-modus actief)";
+      }
+    });
+
+    devSkipBtn.addEventListener("click", () => {
+      window.location.href = NEXT_URL;
+    });
+
+    // Init pogingenteller
+    updateAttemptsText();
   </script>
 </body>
 </html>

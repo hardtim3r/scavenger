@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scavenger Hunt – Wijzer</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      margin: 0;
+      background: #050814;
+      color: #f7f7ff;
+      font-family: system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .compass-wrapper {
+      position: relative;
+      width: 300px;
+      height: 300px;
+    }
+
+    /* Buitenring met glow */
+    .ring {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      border-radius: 50%;
+      border: 2px solid rgba(180,160,255,0.3);
+      box-shadow:
+        0 0 30px rgba(160,120,255,0.25),
+        inset 0 0 30px rgba(120,80,255,0.25);
+      animation: pulse 4s ease-in-out infinite;
+      top: 0;
+      left: 0;
+    }
+
+    @keyframes pulse {
+      0%   { box-shadow: inset 0 0 25px rgba(140,90,255,0.15); }
+      50%  { box-shadow: inset 0 0 45px rgba(190,120,255,0.35); }
+      100% { box-shadow: inset 0 0 25px rgba(140,90,255,0.15); }
+    }
+
+    /* Wijzer (naald) – draait om het punt in het midden */
+    .needle {
+      position: absolute;
+      width: 4px;
+      height: 120px;
+      background: #ffffff;
+      top: 50%;
+      left: 50%;
+      /* GEEN transform hier, die zetten we in JS zodat translate + rotate samen gaan */
+      transform-origin: 50% 100%; /* onderste punt is het draaipunt */
+      border-radius: 2px;
+      filter: drop-shadow(0 0 10px #a985ff);
+      transition: transform 0.12s linear;
+    }
+
+    /* stip in het midden */
+    .center-dot {
+      position: absolute;
+      width: 14px;
+      height: 14px;
+      background: #ffffff;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px rgba(255,255,255,0.6);
+    }
+
+    .status {
+      position: absolute;
+      bottom: -60px;
+      width: 100%;
+      text-align: center;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    button {
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      border: none;
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 16px;
+      font-weight: 600;
+      background: linear-gradient(135deg, #ffb3ff, #9f9cff);
+      color: #141414;
+      cursor: pointer;
+      display: none;
+    }
+
+    button:active {
+      transform: translateX(-50%) scale(0.96);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="compass-wrapper">
+    <div class="ring"></div>
+    <div id="needle" class="needle"></div>
+    <div class="center-dot"></div>
+
+    <p id="status" class="status">Locatie & richting worden geladen…</p>
+
+    <button id="continue-btn">Ga verder</button>
+  </div>
+
+  <script>
+    /* ========= CONFIG ========= */
+    const TARGET_LAT = 51.4500556;
+    const TARGET_LON = 5.454944;
+    const UNLOCK_RADIUS_METERS = 40;
+    const NEXT_URL = "eind.html"; // <-- aanpassen naar jouw volgende pagina
+
+    /* ========= STATE ========= */
+    const needle = document.getElementById('needle');
+    const statusEl = document.getElementById('status');
+    const continueBtn = document.getElementById('continue-btn');
+
+    let heading = null;
+    let userLat = null;
+    let userLon = null;
+    let targetBearing = null;
+    let distanceToTarget = null;
+    let unlocked = false;
+
+    /* ========= HELPERS ========= */
+    function toRad(x){return x*Math.PI/180;}
+    function toDeg(x){return x*180/Math.PI;}
+
+    function distanceInMeters(lat1, lon1, lat2, lon2){
+      const R=6371000;
+      const dLat=toRad(lat2-lat1);
+      const dLon=toRad(lon2-lon1);
+      const a=
+        Math.sin(dLat/2)**2 +
+        Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) *
+        Math.sin(dLon/2)**2;
+      return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    }
+
+    function bearingDegrees(lat1, lon1, lat2, lon2){
+      const φ1=toRad(lat1);
+      const φ2=toRad(lat2);
+      const dLon=toRad(lon2-lon1);
+      const y=Math.sin(dLon)*Math.cos(φ2);
+      const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(dLon);
+      return (toDeg(Math.atan2(y,x))+360)%360;
+    }
+
+    // Wijzer updaten: altijd translate + rotate samen, zodat hij in het midden blijft
+    function updateNeedle(){
+      if (heading == null || targetBearing == null) return;
+      const diff = (targetBearing - heading + 360) % 360;
+      needle.style.transform = `translate(-50%, -100%) rotate(${diff}deg)`;
+    }
+
+    function checkUnlock(){
+      if (unlocked) return;
+      if (distanceToTarget != null && distanceToTarget <= UNLOCK_RADIUS_METERS){
+        unlocked = true;
+        statusEl.textContent = "Dit klopt. 🌙";
+        continueBtn.style.display = "inline-block";
+      }
+    }
+
+    /* ========= GEO ========= */
+    function startGeo(){
+      if (!navigator.geolocation){
+        statusEl.textContent="Geen GPS beschikbaar.";
+        return;
+      }
+
+      navigator.geolocation.watchPosition(
+        pos=>{
+          userLat = pos.coords.latitude;
+          userLon = pos.coords.longitude;
+
+          distanceToTarget = distanceInMeters(userLat,userLon,TARGET_LAT,TARGET_LON);
+          targetBearing = bearingDegrees(userLat,userLon,TARGET_LAT,TARGET_LON);
+
+          if (!unlocked) statusEl.textContent = "";
+          updateNeedle();
+          checkUnlock();
+        },
+        err=>{
+          statusEl.textContent="GPS werkt niet goed.";
+        },
+        {enableHighAccuracy:true, timeout:10000, maximumAge:1000}
+      );
+    }
+
+    /* ========= COMPASS ========= */
+    function startCompass(){
+      if (typeof DeviceOrientationEvent === "undefined"){
+        statusEl.textContent="Geen kompas-toegang.";
+        return;
+      }
+
+      function onOrientation(ev){
+        if (ev.webkitCompassHeading != null){
+          heading = ev.webkitCompassHeading;
+        } else if (ev.alpha != null){
+          heading = ev.alpha;
+        }
+        updateNeedle();
+      }
+
+      if (typeof DeviceOrientationEvent.requestPermission === "function"){
+        DeviceOrientationEvent.requestPermission()
+          .then(resp=>{
+            if (resp==="granted"){
+              window.addEventListener("deviceorientation", onOrientation, true);
+              // status wordt door GPS verder bijgewerkt
+            } else {
+              statusEl.textContent="Kompas-toegang geweigerd.";
+            }
+          })
+          .catch(()=>statusEl.textContent="Kompas-toegang mislukt.");
+      } else {
+        window.addEventListener("deviceorientation", onOrientation, true);
+      }
+    }
+
+    /* ========= INIT ========= */
+
+    // Initieel zorgen dat de wijzer al netjes in het midden staat (zonder rotatie)
+    needle.style.transform = "translate(-50%, -100%) rotate(0deg)";
+
+    startGeo();
+    startCompass();
+
+    continueBtn.addEventListener("click", ()=>{
+      window.location.href = NEXT_URL;
+    });
+  </script>
+</body>
+</html>
