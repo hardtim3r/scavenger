@@ -55,7 +55,7 @@
       transform-origin: 50% 100%; /* onderste punt is draaipunt */
       border-radius: 2px;
       filter: drop-shadow(0 0 10px #a985ff);
-      transition: transform 0.12s linear;
+      /* geen CSS-transition, we smoothen in JS */
     }
 
     /* stip in het midden */
@@ -145,13 +145,17 @@
     const continueBtn = document.getElementById('continue-btn');
     const enableCompassBtn = document.getElementById('enable-compass-btn');
 
-    let heading = null;
+    let heading = null;          // ruwe heading van device
     let userLat = null;
     let userLon = null;
-    let targetBearing = null;
+    let targetBearing = null;    // richting naar doel
     let distanceToTarget = null;
     let unlocked = false;
     let orientationActive = false;
+
+    // Smooth angle state
+    let displayAngle = 0;        // wat we nu tekenen
+    let desiredAngle = 0;        // waar we naartoe willen
 
     /* ========= HELPERS ========= */
     function toRad(x){return x*Math.PI/180;}
@@ -160,13 +164,13 @@
     function distanceInMeters(lat1, lon1, lat2, lon2){
       const R=6371000;
       const dLat=toRad(lat2-lat1);
-      const dLon=toRad(lat2-lon1);
-      const dLonAdj = toRad(lon2 - lon1);
+      const dLon=toRad(lon2-lon1);
       const a=
         Math.sin(dLat/2)**2 +
         Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) *
-        Math.sin(dLonAdj/2)**2;
-      return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        Math.sin(dLon/2)**2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
     }
 
     function bearingDegrees(lat1, lon1, lat2, lon2){
@@ -178,11 +182,16 @@
       return (toDeg(Math.atan2(y,x))+360)%360;
     }
 
-    // Wijzer updaten: translate + rotate samen, zodat hij in het midden blijft
-    function updateNeedle(){
+    // Shortest signed angle difference (-180..+180)
+    function shortestAngleDiff(from, to) {
+      let diff = (to - from + 540) % 360 - 180;
+      return diff;
+    }
+
+    function updateDesiredAngle() {
       if (heading == null || targetBearing == null) return;
       const diff = (targetBearing - heading + 360) % 360;
-      needle.style.transform = `translate(-50%, -100%) rotate(${diff}deg)`;
+      desiredAngle = diff;
     }
 
     function checkUnlock(){
@@ -210,7 +219,7 @@
           targetBearing = bearingDegrees(userLat,userLon,TARGET_LAT,TARGET_LON);
 
           if (!unlocked) statusEl.textContent = "";
-          updateNeedle();
+          updateDesiredAngle();
           checkUnlock();
         },
         err=>{
@@ -227,11 +236,11 @@
 
       function onOrientation(ev){
         if (ev.webkitCompassHeading != null){
-          heading = ev.webkitCompassHeading;
+          heading = ev.webkitCompassHeading; // iOS – 0 is noord
         } else if (ev.alpha != null){
-          heading = ev.alpha;
+          heading = ev.alpha; // Android – 0 ongeveer noord (afhankelijk van device)
         }
-        updateNeedle();
+        updateDesiredAngle();
       }
 
       window.addEventListener("deviceorientation", onOrientation, true);
@@ -243,9 +252,8 @@
         return;
       }
 
-      // iOS: heeft requestPermission nodig NA een user-gesture
+      // iOS: requestPermission nodig NA user-gesture
       if (typeof DeviceOrientationEvent.requestPermission === "function"){
-        // Toon knop om het kompas expliciet in te schakelen
         enableCompassBtn.style.display = "inline-block";
         enableCompassBtn.addEventListener("click", () => {
           DeviceOrientationEvent.requestPermission()
@@ -263,18 +271,33 @@
             });
         });
       } else {
-        // Android / andere browsers: direct luisteren
+        // Android / andere browsers
         attachOrientationListener();
       }
     }
 
+    /* ========= ANIMATIE-LOOP VOOR SMOOTH ROTATION ========= */
+    function animateNeedle() {
+      // beweeg displayAngle langzaam naar desiredAngle via kortste route
+      const diff = shortestAngleDiff(displayAngle, desiredAngle);
+      const SMOOTHING = 0.15; // hoger = sneller, lager = smoother
+      displayAngle += diff * SMOOTHING;
+
+      needle.style.transform = `translate(-50%, -100%) rotate(${displayAngle}deg)`;
+
+      requestAnimationFrame(animateNeedle);
+    }
+
     /* ========= INIT ========= */
 
-    // Initieel zorgen dat de wijzer al netjes in het midden staat (zonder rotatie)
+    // init-positie wijzer
+    displayAngle = 0;
+    desiredAngle = 0;
     needle.style.transform = "translate(-50%, -100%) rotate(0deg)";
 
     startGeo();
     startCompass();
+    animateNeedle();
 
     continueBtn.addEventListener("click", ()=>{
       window.location.href = NEXT_URL;
