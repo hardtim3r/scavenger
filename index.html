@@ -15,6 +15,7 @@
       color: #f5f5f5;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       min-height: 100vh;
+      overflow: hidden; 
     }
 
     .chat-wrapper {
@@ -24,6 +25,7 @@
       display: flex;
       flex-direction: column;
       padding: 0.75rem 0.75rem 1rem;
+      position: relative;
     }
 
     .status {
@@ -41,10 +43,8 @@
 
     .chat-window {
       flex: 1;
-      border-radius: 0;
       background: transparent;
       padding: 0.25rem;
-      box-shadow: none;
       overflow-y: auto;
       box-sizing: border-box;
     }
@@ -53,7 +53,7 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      padding-bottom: 1.5rem;
+      padding-bottom: 2rem;
     }
 
     .chat-line {
@@ -69,7 +69,6 @@
       font-size: 0.95rem;
       line-height: 1.5;
       word-wrap: break-word;
-      word-break: break-word;
       white-space: pre-wrap;
     }
 
@@ -99,7 +98,7 @@
 
     .day-separator {
       text-align: center;
-      margin: 10px 0 6px;
+      margin: 12px 0 6px;
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.16em;
@@ -110,54 +109,56 @@
       background: #050711;
       padding: 2px 10px;
       border-radius: 999px;
-      border: 1px solid rgba(255, 255, 255, 0.08);
-    }
-
-    .cta-button {
-      border: none;
-      padding: 8px 16px;
-      border-radius: 999px;
-      background: #f5f5f5;
-      color: #05060a;
-      font-size: 0.9rem;
-      font-weight: 600;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-
-    .cta-button:active {
-      transform: scale(0.97);
+      border: 1px solid rgba(255,255,255,0.08);
     }
 
     @keyframes fadeIn {
-      from {
-        opacity: 0;
-        transform: translateY(4px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
-    .chat-window::-webkit-scrollbar {
-      width: 6px;
+    /* --- EINDKNOOP --- */
+    .final-button-container {
+      position: absolute;
+      inset: 0;
+      background: rgba(5, 6, 10, 0.96);
+      display: none;          /* verschijnt pas aan het eind */
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.5s ease forwards;
+      padding-bottom: 10vh;
     }
-    .chat-window::-webkit-scrollbar-track {
-      background: transparent;
-    }
-    .chat-window::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.18);
+
+    .final-button {
+      border: none;
+      padding: 14px 26px;
       border-radius: 999px;
+      background: #ffffff;
+      color: #05060a;
+      font-size: 1.05rem;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 6px 25px rgba(255,255,255,0.15);
     }
+
+    .final-button:active {
+      transform: scale(0.97);
+    }
+
   </style>
 </head>
 <body>
   <div class="chat-wrapper">
     <div id="status" class="status">Momentje, ik spoel even terug…</div>
     <input type="file" id="file-input" accept=".txt" />
+
     <div class="chat-window" id="chat-window">
       <div id="chat-container" class="chat-container"></div>
+    </div>
+
+    <!-- FINAL BUTTON -->
+    <div id="final-container" class="final-button-container">
+      <button id="final-button" class="final-button">Ga verder</button>
     </div>
   </div>
 
@@ -167,132 +168,92 @@
     const statusEl = document.getElementById("status");
     const fileInput = document.getElementById("file-input");
 
+    const finalContainer = document.getElementById("final-container");
+    const finalButton = document.getElementById("final-button");
+
+    // URL van de volgende pagina:
+    const NEXT_URL = "volgende.html";
+
     let messages = [];
     let index = 0;
-    let finished = false;
-
-    // URL van de volgende pagina (pas deze aan naar wat jij wilt)
-    const NEXT_URL = "volgende.html";
-    const FINAL_BUTTON_DELAY = 2000; // 2 seconden na laatste bericht
-
-    // Timings
-    const WARMUP_COUNT = 13;    // eerste ~13 berichten traag
-    const COOLDOWN_COUNT = 14;  // laatste ~14 berichten traag
-    const SLOW_DELAY = 1000;    // 1 seconde bij langzaam
-    const FAST_MIN_DELAY = 4;   // snelste in het midden
-    const FAST_MAX_DELAY = 40;  // begin van het midden, voor hij echt "afvliegt"
-
     let senderA = null;
     let senderB = null;
     let lastShownDate = null;
 
-    // Eerst proberen we chat.txt via fetch (voor server / GitHub / Netlify)
+    // Timings
+    const WARMUP_COUNT = 13;
+    const COOLDOWN_COUNT = 14;
+    const SLOW_DELAY = 1000;
+    const FAST_MIN_DELAY = 4;
+    const FAST_MAX_DELAY = 40;
+
+    // fetch chat
     fetch("chat.txt")
-      .then(r => {
-        if (!r.ok) throw new Error("HTTP " + r.status);
-        return r.text();
-      })
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
       .then(text => {
         messages = parseWhatsAppExport(text);
-        if (!messages.length) {
-          statusEl.textContent = "Kon geen berichten vinden in chat.txt 😢";
-          return;
-        }
         statusEl.textContent = "";
         setTimeout(showNext, 800);
       })
-      .catch(err => {
-        console.warn("fetch(chat.txt) faalde:", err);
-        enableFileFallback();
-      });
+      .catch(() => enableFileFallback());
 
     function enableFileFallback() {
-      statusEl.textContent = "Kon chat.txt niet automatisch laden. Kies hier je WhatsApp export:";
+      statusEl.textContent = "Kon chat.txt niet laden. Kies het bestand:";
       fileInput.style.display = "block";
-
       fileInput.addEventListener("change", () => {
-        const file = fileInput.files[0];
-        if (!file) return;
         const reader = new FileReader();
-        reader.onload = e => {
-          const text = e.target.result;
-          messages = parseWhatsAppExport(text);
-          if (!messages.length) {
-            statusEl.textContent = "Kon geen berichten vinden in dit bestand 😢";
-            return;
-          }
-          fileInput.style.display = "none";
-          statusEl.textContent = "";
-          setTimeout(showNext, 800);
-        };
-        reader.readAsText(file, "utf-8");
+        reader.onload = e => { messages = parseWhatsAppExport(e.target.result); statusEl.textContent = ""; fileInput.style.display="none"; setTimeout(showNext,800); };
+        reader.readAsText(fileInput.files[0], "utf-8");
       });
     }
 
     function parseWhatsAppExport(text) {
       const lines = text.split(/\r?\n/);
       const result = [];
-      let current = null;
+      let cur = null;
       const senders = new Set();
-
       const re = /^\[(\d{2})\/(\d{2})\/(\d{4}),\s+\d{2}:\d{2}:\d{2}\]\s+([^:]+):\s(.*)$/;
 
-      for (const rawLine of lines) {
-        const line = rawLine.trim();
+      for (let raw of lines) {
+        const line = raw.trim();
         if (!line) continue;
 
-        const match = line.match(re);
-        if (match) {
-          if (current) result.push(current);
+        const m = line.match(re);
+        if (m) {
+          if (cur) result.push(cur);
 
-          const day = match[1];
-          const month = match[2];
-          const sender = match[4];
-          const textPart = match[5];
-
-          if (
-            textPart === "<Media weggelaten>" ||
-            textPart === "<Media omitted>"
-          ) {
-            current = null;
+          const [_, dd, mm, yyyy, sender, textMsg] = m;
+          if (textMsg === "<Media weggelaten>" || textMsg === "<Media omitted>") {
+            cur = null;
             continue;
           }
 
           senders.add(sender);
-
-          current = {
-            date: `${day}-${month}`,
-            sender,
-            text: textPart
-          };
-        } else if (current) {
-          current.text += "\n" + line;
+          cur = { date: `${dd}-${mm}`, sender, text: textMsg };
+        } else if (cur) {
+          cur.text += "\n" + line;
         }
       }
+      if (cur) result.push(cur);
 
-      if (current) result.push(current);
-
-      const unique = Array.from(senders);
-      senderA = unique[0] || "A";
-      senderB = unique[1] || "B";
+      const uniq = Array.from(senders);
+      senderA = uniq[0] || "A";
+      senderB = uniq[1] || "B";
 
       return result;
     }
 
     function showNext() {
       if (index >= messages.length) {
-        if (finished) return;
-        finished = true;
-
-        statusEl.textContent = "…en toen waren we er ineens echt. 🌙";
-
-        // Na ~2 sec een 'bericht' met knop laten verschijnen
-        setTimeout(showContinueBubble, FINAL_BUTTON_DELAY);
+        // Laat de final button zien na 2s
+        setTimeout(() => { finalContainer.style.display = "flex"; }, 2000);
+        finalButton.onclick = () => { window.location.href = NEXT_URL; };
         return;
       }
 
       const msg = messages[index];
 
+      // date separator
       if (msg.date !== lastShownDate) {
         const sep = document.createElement("div");
         sep.className = "day-separator";
@@ -302,13 +263,12 @@
       }
 
       const line = document.createElement("div");
-      const isSenderA = msg.sender === senderA;
-      line.className = "chat-line " + (isSenderA ? "from-a" : "from-b");
+      const isA = msg.sender === senderA;
+      line.className = "chat-line " + (isA ? "from-a" : "from-b");
 
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.innerHTML = `<em>${escapeHtml(msg.text).replace(/\n/g, "<br>")}</em>`;
-
+      bubble.innerHTML = `<em>${escapeHtml(msg.text).replace(/\n/g,"<br>")}</em>`;
       line.appendChild(bubble);
       container.appendChild(line);
 
@@ -319,56 +279,22 @@
       const total = messages.length;
       let delay;
 
-      if (total <= WARMUP_COUNT + COOLDOWN_COUNT) {
-        delay = SLOW_DELAY;
-      } else if (index <= WARMUP_COUNT) {
-        delay = SLOW_DELAY;
-      } else if (index >= total - COOLDOWN_COUNT) {
-        delay = SLOW_DELAY;
-      } else {
+      if (total <= WARMUP_COUNT + COOLDOWN_COUNT) delay = SLOW_DELAY;
+      else if (index <= WARMUP_COUNT) delay = SLOW_DELAY;
+      else if (index >= total - COOLDOWN_COUNT) delay = SLOW_DELAY;
+      else {
         const middleTotal = total - WARMUP_COUNT - COOLDOWN_COUNT;
         const midIndex = index - WARMUP_COUNT;
         const progress = midIndex / middleTotal;
-
-        const easing = Math.pow(1 - progress, 3);  // 1 → 0
-
+        const easing = Math.pow(1 - progress, 3);
         delay = FAST_MIN_DELAY + (FAST_MAX_DELAY - FAST_MIN_DELAY) * easing;
       }
 
       setTimeout(showNext, delay);
     }
 
-    function showContinueBubble() {
-      const line = document.createElement("div");
-      // Laat de knop als 'jouw' bericht (rechts) verschijnen
-      line.className = "chat-line from-b";
-
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-
-      bubble.innerHTML = `
-        <button class="cta-button" id="continue-btn">
-          Ga verder
-        </button>
-      `;
-
-      line.appendChild(bubble);
-      container.appendChild(line);
-      chatWindow.scrollTop = chatWindow.scrollHeight;
-
-      const btn = document.getElementById("continue-btn");
-      if (btn) {
-        btn.addEventListener("click", () => {
-          window.location.href = NEXT_URL;
-        });
-      }
-    }
-
     function escapeHtml(str) {
-      return String(str)
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+      return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     }
   </script>
 </body>
