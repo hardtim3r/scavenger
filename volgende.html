@@ -31,11 +31,33 @@
     }
 
     .riddle {
-      font-size: 1rem;
+      font-size: 1.1rem;
       line-height: 1.6;
-      margin-bottom: 16px;
+      margin-bottom: 14px;
       opacity: 0.96;
-      cursor: pointer; /* zodat triple tap logisch voelt */
+      cursor: pointer;
+      font-weight: 600;
+    }
+
+    .photo {
+      margin-bottom: 10px;
+      position: relative;
+    }
+
+    .photo img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 16px;
+      display: block;
+      margin: 0 auto;
+      cursor: zoom-in;
+      transition: opacity 0.3s ease;
+    }
+
+    .photo-tip {
+      font-size: 0.75rem;
+      opacity: 0.5;
+      margin-top: 4px;
     }
 
     .hint {
@@ -51,12 +73,6 @@
       min-height: 1.4em;
     }
 
-    .attempts {
-      font-size: 0.8rem;
-      opacity: 0.7;
-      margin-top: 4px;
-    }
-
     button {
       border: none;
       border-radius: 999px;
@@ -69,16 +85,7 @@
       font-weight: 600;
     }
 
-    button:disabled {
-      opacity: 0.4;
-      cursor: default;
-    }
-
-    #continue-btn {
-      display: none;
-    }
-
-    /* DEV-SKIP knop */
+    /* DEV SKIP */
     #dev-skip {
       display: none;
       margin-top: 10px;
@@ -93,150 +100,131 @@
     <div class="card">
 
       <p id="riddle" class="riddle">
-        <em>“Ga naar de plek waar stilte en geluid elkaar voor het eerst echt ontmoetten.”</em>
+        Waar is dit?
       </p>
 
-      <button id="dev-skip">DEV: Skip naar volgende</button>
+      <div class="photo">
+        <img id="photo-img" src="foto1.png" alt="Plek 1" />
+        <p class="photo-tip">(Tip: dubbelklik als je ’m beter wil zien)</p>
+      </div>
 
       <p class="hint">
-        Sta op de plek waar jij denkt dat dit over gaat,<br/>
-        en dien daarna je locatie in.
+        Sta op de plek waar jij denkt te moeten zijn<br/>
+        en bevestig je locatie.
       </p>
 
-      <button id="submit-btn">Dien locatie in</button>
+      <button id="submit-btn">Bevestig locatie</button>
 
       <p id="status" class="status"></p>
-      <p id="attempts" class="attempts"></p>
 
-      <button id="continue-btn">Ga verder</button>
+      <!-- DEV SKIP -->
+      <button id="dev-skip">DEV: Skip naar volgende</button>
     </div>
   </div>
 
-  <script>
-    // ========= CONFIG =========
-    const TARGET_LAT = 51.000000;  // <-- vervang
-    const TARGET_LON = 5.000000;   // <-- vervang
-    const RADIUS_METERS = 10;
-    const MAX_ATTEMPTS = 3;
+<script>
+  // ====== COÖRDINATEN ======
+  const TARGET_LAT = 51.4528889;
+  const TARGET_LON = 5.44425;
+  const RADIUS_METERS = 100;
 
-    const NEXT_URL = "kompas.html";
+  const NEXT_URL = "vraag.html";
 
-    // ========= STATE =========
-    const submitBtn = document.getElementById("submit-btn");
-    const statusEl = document.getElementById("status");
-    const attemptsEl = document.getElementById("attempts");
-    const continueBtn = document.getElementById("continue-btn");
-    const devSkipBtn = document.getElementById("dev-skip");
-    const riddleEl = document.getElementById("riddle");
+  // ====== ELEMENTEN ======
+  const submitBtn = document.getElementById("submit-btn");
+  const statusEl = document.getElementById("status");
+  const devSkipBtn = document.getElementById("dev-skip");
+  const riddleEl = document.getElementById("riddle");
+  const photoImg = document.getElementById("photo-img");
 
-    let attemptsUsed = 0;
-    let finished = false;
-    let devEnabled = false;
+  let devEnabled = false;
 
-    // ========= HELPERS =========
-    function toRad(x) { return x * Math.PI / 180; }
+  // ====== FOTO SWITCH ======
+  let photoIndex = 1;
+  const photos = {
+    1: "foto1.png",
+    2: "foto2.png",
+    3: "foto3.png"
+  };
 
-    function distanceInMeters(lat1, lon1, lat2, lon2) {
-      const R = 6371000;
-      const dLat = toRad(lat2 - lat1);
-      const dLon = toRad(lon2 - lon1);
-      const a =
-        Math.sin(dLat / 2) ** 2 +
-        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) ** 2;
-      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-      return R * c;
+  photoImg.addEventListener("dblclick", () => {
+    if (photoIndex < 3) {
+      photoIndex++;
+      photoImg.style.opacity = 0;
+      setTimeout(() => {
+        photoImg.src = photos[photoIndex];
+        photoImg.style.opacity = 1;
+      }, 180);
+    }
+  });
+
+  // ====== HELPERS ======
+  function toRad(x) { return x * Math.PI / 180; }
+
+  function distanceInMeters(lat1, lon1, lat2, lon2) {
+    const R = 6371000;
+    const dLat = toRad(lat2 - lat1);
+    const dLon = toRad(lon2 - lon1); // ✅ FIX HIER
+    const a =
+      Math.sin(dLat / 2)**2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+      Math.sin(dLon / 2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  function handleSuccess() {
+    window.location.href = NEXT_URL;
+  }
+
+  // ====== LOCATIE CHECK ======
+  submitBtn.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      statusEl.textContent = "Locatie niet beschikbaar.";
+      return;
     }
 
-    function updateAttemptsText() {
-      const left = Math.max(0, MAX_ATTEMPTS - attemptsUsed);
-      attemptsEl.textContent = `Pogingen over: ${left} van de ${MAX_ATTEMPTS}`;
-    }
+    statusEl.textContent = "Locatie wordt gecontroleerd…";
 
-    function lockOut() {
-      submitBtn.disabled = true;
-      statusEl.textContent = "Geen pogingen meer.";
-    }
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        const dist = distanceInMeters(
+          pos.coords.latitude,
+          pos.coords.longitude,
+          TARGET_LAT,
+          TARGET_LON
+        );
 
-    function handleSuccess() {
-      finished = true;
-      submitBtn.disabled = true;
-      statusEl.textContent = "Dit klopt. 🌙";
-      continueBtn.style.display = "inline-block";
-    }
-
-    // ========= LOCATIE-LOGICA =========
-    submitBtn.addEventListener("click", () => {
-      if (finished) return;
-
-      if (attemptsUsed >= MAX_ATTEMPTS) {
-        lockOut();
-        return;
-      }
-
-      if (!navigator.geolocation) {
-        statusEl.textContent = "Locatie niet beschikbaar.";
-        return;
-      }
-
-      statusEl.textContent = "Locatie wordt gecontroleerd…";
-
-      navigator.geolocation.getCurrentPosition(
-        pos => {
-          attemptsUsed++;
-          updateAttemptsText();
-
-          const lat = pos.coords.latitude;
-          const lon = pos.coords.longitude;
-          const dist = distanceInMeters(lat, lon, TARGET_LAT, TARGET_LON);
-
-          if (dist <= RADIUS_METERS) {
-            handleSuccess();
-          } else {
-            if (attemptsUsed >= MAX_ATTEMPTS) {
-              lockOut();
-            } else {
-              statusEl.textContent = `Fout, je zit er ${Math.round(dist)} meter vandaan.`;
-            }
-          }
-        },
-        err => {
-          statusEl.textContent = "Locatie ophalen mislukt.";
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
+        if (dist <= RADIUS_METERS) {
+          handleSuccess(); 
+        } else {
+          statusEl.textContent = `Fout, je zit er ${Math.round(dist)} meter vandaan.`;
         }
-      );
-    });
+      },
+      err => {
+        statusEl.textContent = "Locatie ophalen mislukt.";
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
 
-    continueBtn.addEventListener("click", () => {
-      window.location.href = NEXT_URL;
-    });
+  // ====== DEV MODE (triple tap titel) ======
+  let taps = [];
+  riddleEl.addEventListener("click", () => {
+    const now = Date.now();
+    taps.push(now);
+    if (taps.length > 3) taps.shift();
 
-    // ========= DEV MODE (triple tap) =========
-    let tapTimes = [];
+    if (taps.length === 3 && taps[2] - taps[0] < 900) {
+      devSkipBtn.style.display = "inline-block";
+      statusEl.textContent = "(DEV-modus actief)";
+    }
+  });
 
-    riddleEl.addEventListener("click", () => {
-      const now = Date.now();
-      tapTimes.push(now);
+  devSkipBtn.addEventListener("click", () => {
+    window.location.href = NEXT_URL;
+  });
+</script>
 
-      if (tapTimes.length > 3) tapTimes.shift();
-
-      if (tapTimes.length === 3 && tapTimes[2] - tapTimes[0] < 900) {
-        devEnabled = true;
-        devSkipBtn.style.display = "inline-block";
-        statusEl.textContent = "(DEV-modus actief)";
-      }
-    });
-
-    devSkipBtn.addEventListener("click", () => {
-      window.location.href = NEXT_URL;
-    });
-
-    // Init pogingenteller
-    updateAttemptsText();
-  </script>
 </body>
 </html>

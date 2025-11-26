@@ -58,9 +58,8 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      padding-bottom: 2.5rem; /* WAS 4rem */
+      padding-bottom: 2.5rem;
     }
-
 
     .chat-line {
       display: flex;
@@ -169,11 +168,10 @@
       bottom: 0;
       display: none;
       justify-content: center;
-      padding: 0.25rem 1rem 0.75rem; /* WAS veel groter */
+      padding: 0.25rem 1rem 0.75rem;
       background: linear-gradient(to top, rgba(5,6,10,0.85), rgba(5,6,10,0));
       z-index: 5;
     }
-
 
     .final-button {
       border: none;
@@ -355,10 +353,20 @@
       const total = messages.length;
       let delay;
 
-      if (total <= WARMUP_COUNT + COOLDOWN_COUNT) delay = SLOW_DELAY;
-      else if (index <= WARMUP_COUNT) delay = SLOW_DELAY;
-      else if (index >= total - COOLDOWN_COUNT) delay = SLOW_DELAY;
-      else {
+      if (total <= WARMUP_COUNT + COOLDOWN_COUNT) {
+        // alles langzaam als er weinig berichten zijn
+        delay = SLOW_DELAY;
+      } else if (index < WARMUP_COUNT) {
+        // eerste warmup-berichten
+        delay = SLOW_DELAY;
+      } else if (index === WARMUP_COUNT) {
+        // laatste langzame bericht net geweest → extra pauze
+        delay = SLOW_DELAY + 2000; // 1s + 2s extra
+      } else if (index >= total - COOLDOWN_COUNT) {
+        // laatste fase: weer langzaam
+        delay = SLOW_DELAY;
+      } else {
+        // middenstuk: snel
         const middleTotal = total - WARMUP_COUNT - COOLDOWN_COUNT;
         const midIndex = index - WARMUP_COUNT;
         const progress = midIndex / middleTotal;

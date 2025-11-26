@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scavenger Hunt</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050814;
+      color: #f7f7ff;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .wrapper {
+      margin: auto;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    .card {
+      background: rgba(15, 18, 40, 0.92);
+      border-radius: 24px;
+      padding: 24px 22px 20px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .title {
+      font-size: 0.95rem;
+      text-transform: uppercase;
+      letter-spacing: 0.18em;
+      opacity: 0.7;
+      margin-bottom: 10px;
+    }
+
+    .riddle {
+      font-size: 1.4rem;
+      line-height: 1.8;
+      margin-bottom: 10px;
+      opacity: 0.96;
+      cursor: pointer; /* triple tap voor dev-modus */
+    }
+
+    .code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      letter-spacing: 0.12em;
+      white-space: pre-line;
+    }
+
+    .hint-small {
+      font-size: 0.75rem;
+      opacity: 0.55;
+      margin-top: 2px;
+      margin-bottom: 10px;
+    }
+
+    .hint {
+      font-size: 0.85rem;
+      opacity: 0.85;
+      margin-top: 8px;
+      line-height: 1.4;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      margin-top: 13px;
+      min-height: 1.4em;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #ffb3ff, #9f9cff);
+      color: #141414;
+      font-weight: 600;
+    }
+
+    /* DEV-SKIP knop */
+    #dev-skip {
+      display: none;
+      margin-top: 10px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+
+
+      <!-- De gecodeerde zin -->
+      <p id="riddle" class="riddle code">
+12 9 5 6 4 5   14 15 15 9 20
+14 5 5 13 20   1 6 19 3 8 5 9 4
+      </p>
+
+      <p class="hint">
+        Sta op de plek waar jij denkt te moeten zijn,<br/>
+        en bevestig je locatie.
+      </p>
+
+      <button id="submit-btn">Bevestig locatie</button>
+
+      <p id="status" class="status"></p>
+
+      <!-- DEV-SKIP knop -->
+      <button id="dev-skip">DEV: Skip naar kompas</button>
+    </div>
+  </div>
+
+  <script>
+    // ========= CONFIG =========
+    // 51°27'00.2"N 5°27'27.5"E  → decimaal:
+    const TARGET_LAT = 51.4500556;
+    const TARGET_LON = 5.4576389;
+    const RADIUS_METERS = 25;
+
+    const NEXT_URL = "kompas.html";
+
+    // ========= ELEMENTEN =========
+    const submitBtn  = document.getElementById("submit-btn");
+    const statusEl   = document.getElementById("status");
+    const devSkipBtn = document.getElementById("dev-skip");
+    const riddleEl   = document.getElementById("riddle");
+
+    let devEnabled = false;
+
+    // ========= HELPERS =========
+    function toRad(x) { return x * Math.PI / 180; }
+
+    function distanceInMeters(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a =
+        Math.sin(dLat / 2) ** 2 +
+        Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+        Math.sin(dLon / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      return R * c;
+    }
+
+    function handleSuccess() {
+      // Direct door naar kompas
+      window.location.href = NEXT_URL;
+    }
+
+    // ========= LOCATIE-LOGICA =========
+    submitBtn.addEventListener("click", () => {
+      if (!navigator.geolocation) {
+        statusEl.textContent = "Locatie niet beschikbaar.";
+        return;
+      }
+
+      statusEl.textContent = "Locatie wordt gecontroleerd…";
+
+      navigator.geolocation.getCurrentPosition(
+        pos => {
+          const lat  = pos.coords.latitude;
+          const lon  = pos.coords.longitude;
+          const dist = distanceInMeters(lat, lon, TARGET_LAT, TARGET_LON);
+
+          if (dist <= RADIUS_METERS) {
+            handleSuccess();
+          } else {
+            statusEl.textContent = `Fout, je zit er ${Math.round(dist)} meter vandaan.`;
+          }
+        },
+        err => {
+          statusEl.textContent = "Locatie ophalen mislukt.";
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    });
+
+    // ========= DEV MODE (triple tap op de code) =========
+    let tapTimes = [];
+
+    riddleEl.addEventListener("click", () => {
+      const now = Date.now();
+      tapTimes.push(now);
+
+      if (tapTimes.length > 3) tapTimes.shift();
+
+      if (tapTimes.length === 3 && tapTimes[2] - tapTimes[0] < 900) {
+        devEnabled = true;
+        devSkipBtn.style.display = "inline-block";
+        statusEl.textContent = "(DEV-modus actief)";
+      }
+    });
+
+    devSkipBtn.addEventListener("click", () => {
+      window.location.href = NEXT_URL;
+    });
+  </script>
+</body>
+</html>
