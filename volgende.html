@@ -20,6 +20,9 @@
       margin: auto;
       max-width: 480px;
       text-align: center;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
 
     .card {
@@ -85,7 +88,6 @@
       font-weight: 600;
     }
 
-    /* DEV SKIP */
     #dev-skip {
       display: none;
       margin-top: 10px;
@@ -93,10 +95,63 @@
       color: #fff;
       font-size: 14px;
     }
+
+    /* INTRO OVERLAY */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%), #050814;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .intro-box {
+      max-width: 420px;
+      padding: 28px 24px 24px;
+      border-radius: 24px;
+      background: rgba(5, 7, 18, 0.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-text {
+      font-size: 1.9rem; /* GROTER */
+      line-height: 1.45;
+      font-weight: 500;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .intro-text.fade-in {
+      animation: introFade 0.8s ease forwards;
+    }
+
+    @keyframes introFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="wrapper">
+
+  <!-- INTRO OVERLAY -->
+  <div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+      <p id="intro-text" class="intro-text"></p>
+    </div>
+  </div>
+
+  <!-- HOOFDINHOUD -->
+  <div class="wrapper" id="main-wrapper">
     <div class="card">
 
       <p id="riddle" class="riddle">
@@ -117,7 +172,6 @@
 
       <p id="status" class="status"></p>
 
-      <!-- DEV SKIP -->
       <button id="dev-skip">DEV: Skip naar volgende</button>
     </div>
   </div>
@@ -130,22 +184,60 @@
 
   const NEXT_URL = "vraag.html";
 
-  // ====== ELEMENTEN ======
-  const submitBtn = document.getElementById("submit-btn");
-  const statusEl = document.getElementById("status");
+  const submitBtn  = document.getElementById("submit-btn");
+  const statusEl   = document.getElementById("status");
   const devSkipBtn = document.getElementById("dev-skip");
-  const riddleEl = document.getElementById("riddle");
-  const photoImg = document.getElementById("photo-img");
+  const riddleEl   = document.getElementById("riddle");
+  const photoImg   = document.getElementById("photo-img");
+  const introOverlay = document.getElementById("intro-overlay");
+  const introTextEl  = document.getElementById("intro-text");
+  const mainWrapper  = document.getElementById("main-wrapper");
 
-  let devEnabled = false;
+  /* ===== INTRO SEQUENCE ===== */
 
-  // ====== FOTO SWITCH ======
+  const introMessages = [
+    "Hoi Hiep",
+    "Daar zijn we dan, 100 dagen later.",
+    "Ik stuur je op pad.",
+    "Ik ga wel mee hoor, is net zo gezellig.",
+    "Hopelijk moet je nog wat stappen zetten vandaag.",
+    "No worries tho, zó lang is het ook weer niet.",
+    "Bedankt dat je bestaat :)."
+  ];
+
+  function runIntro() {
+    let idx = 0;
+    const DISPLAY_TIME = 3400; // LANGZAMER (2× zo langzaam)
+
+    function nextMessage() {
+      if (idx >= introMessages.length) {
+        introOverlay.style.transition = "opacity 0.45s ease";
+        introOverlay.style.opacity = "0";
+        setTimeout(() => {
+          introOverlay.style.display = "none";
+          mainWrapper.style.opacity = "1";
+          mainWrapper.style.transform = "translateY(0)";
+        }, 450);
+        return;
+      }
+
+      introTextEl.classList.remove("fade-in");
+      void introTextEl.offsetWidth; // reflow
+      introTextEl.textContent = introMessages[idx];
+      introTextEl.classList.add("fade-in");
+
+      idx++;
+      setTimeout(nextMessage, DISPLAY_TIME);
+    }
+
+    nextMessage();
+  }
+
+  window.addEventListener("load", runIntro);
+
+  /* FOTO SWITCH */
   let photoIndex = 1;
-  const photos = {
-    1: "foto1.png",
-    2: "foto2.png",
-    3: "foto3.png"
-  };
+  const photos = { 1:"foto1.png", 2:"foto2.png", 3:"foto3.png" };
 
   photoImg.addEventListener("dblclick", () => {
     if (photoIndex < 3) {
@@ -158,26 +250,21 @@
     }
   });
 
-  // ====== HELPERS ======
-  function toRad(x) { return x * Math.PI / 180; }
+  /* LOCATIE */
+  function toRad(x){ return x * Math.PI / 180; }
 
   function distanceInMeters(lat1, lon1, lat2, lon2) {
     const R = 6371000;
     const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1); // ✅ FIX HIER
+    const dLon = toRad(lon2 - lon1);
     const a =
-      Math.sin(dLat / 2)**2 +
-      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-      Math.sin(dLon / 2)**2;
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
+      Math.sin(dLat/2)**2 +
+      Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*
+      Math.sin(dLon/2)**2;
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R*c;
   }
 
-  function handleSuccess() {
-    window.location.href = NEXT_URL;
-  }
-
-  // ====== LOCATIE CHECK ======
   submitBtn.addEventListener("click", () => {
     if (!navigator.geolocation) {
       statusEl.textContent = "Locatie niet beschikbaar.";
@@ -188,42 +275,29 @@
 
     navigator.geolocation.getCurrentPosition(
       pos => {
-        const dist = distanceInMeters(
-          pos.coords.latitude,
-          pos.coords.longitude,
-          TARGET_LAT,
-          TARGET_LON
-        );
-
+        const dist = distanceInMeters(pos.coords.latitude, pos.coords.longitude, TARGET_LAT, TARGET_LON);
         if (dist <= RADIUS_METERS) {
-          handleSuccess(); 
+          window.location.href = NEXT_URL;
         } else {
           statusEl.textContent = `Fout, je zit er ${Math.round(dist)} meter vandaan.`;
         }
       },
-      err => {
-        statusEl.textContent = "Locatie ophalen mislukt.";
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+      () => statusEl.textContent = "Locatie ophalen mislukt.",
+      { enableHighAccuracy:true, timeout:10000, maximumAge:0 }
     );
   });
 
-  // ====== DEV MODE (triple tap titel) ======
+  /* DEV MODE */
   let taps = [];
   riddleEl.addEventListener("click", () => {
     const now = Date.now();
     taps.push(now);
     if (taps.length > 3) taps.shift();
-
-    if (taps.length === 3 && taps[2] - taps[0] < 900) {
+    if (taps.length === 3 && taps[2]-taps[0] < 900)
       devSkipBtn.style.display = "inline-block";
-      statusEl.textContent = "(DEV-modus actief)";
-    }
   });
 
-  devSkipBtn.addEventListener("click", () => {
-    window.location.href = NEXT_URL;
-  });
+  devSkipBtn.addEventListener("click", () => window.location.href = NEXT_URL);
 </script>
 
 </body>
