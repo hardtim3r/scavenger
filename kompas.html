@@ -52,8 +52,7 @@
       background: #ffffff;
       top: 50%;
       left: 50%;
-      /* GEEN transform hier, die zetten we in JS zodat translate + rotate samen gaan */
-      transform-origin: 50% 100%; /* onderste punt is het draaipunt */
+      transform-origin: 50% 100%; /* onderste punt is draaipunt */
       border-radius: 2px;
       filter: drop-shadow(0 0 10px #a985ff);
       transition: transform 0.12s linear;
@@ -79,13 +78,11 @@
       text-align: center;
       font-size: 14px;
       opacity: 0.9;
+      padding: 0 1rem;
+      box-sizing: border-box;
     }
 
     button {
-      position: absolute;
-      bottom: -10px;
-      left: 50%;
-      transform: translateX(-50%);
       border: none;
       border-radius: 999px;
       padding: 12px 24px;
@@ -94,11 +91,30 @@
       background: linear-gradient(135deg, #ffb3ff, #9f9cff);
       color: #141414;
       cursor: pointer;
-      display: none;
     }
 
     button:active {
-      transform: translateX(-50%) scale(0.96);
+      transform: scale(0.96);
+    }
+
+    #continue-btn {
+      position: absolute;
+      bottom: -10px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: none;
+    }
+
+    /* iOS kompas-activatieknop */
+    #enable-compass-btn {
+      position: absolute;
+      top: -60px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 14px;
+      padding: 10px 20px;
+      display: none; /* alleen tonen als requestPermission bestaat */
+      background: rgba(255,255,255,0.9);
     }
   </style>
 </head>
@@ -108,6 +124,8 @@
     <div class="ring"></div>
     <div id="needle" class="needle"></div>
     <div class="center-dot"></div>
+
+    <button id="enable-compass-btn">Activeer kompas</button>
 
     <p id="status" class="status">Locatie & richting worden geladen…</p>
 
@@ -125,6 +143,7 @@
     const needle = document.getElementById('needle');
     const statusEl = document.getElementById('status');
     const continueBtn = document.getElementById('continue-btn');
+    const enableCompassBtn = document.getElementById('enable-compass-btn');
 
     let heading = null;
     let userLat = null;
@@ -132,6 +151,7 @@
     let targetBearing = null;
     let distanceToTarget = null;
     let unlocked = false;
+    let orientationActive = false;
 
     /* ========= HELPERS ========= */
     function toRad(x){return x*Math.PI/180;}
@@ -140,11 +160,12 @@
     function distanceInMeters(lat1, lon1, lat2, lon2){
       const R=6371000;
       const dLat=toRad(lat2-lat1);
-      const dLon=toRad(lon2-lon1);
+      const dLon=toRad(lat2-lon1);
+      const dLonAdj = toRad(lon2 - lon1);
       const a=
         Math.sin(dLat/2)**2 +
         Math.cos(toRad(lat1))*Math.cos(toRad(lat2)) *
-        Math.sin(dLon/2)**2;
+        Math.sin(dLonAdj/2)**2;
       return 2*R*Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     }
 
@@ -157,7 +178,7 @@
       return (toDeg(Math.atan2(y,x))+360)%360;
     }
 
-    // Wijzer updaten: altijd translate + rotate samen, zodat hij in het midden blijft
+    // Wijzer updaten: translate + rotate samen, zodat hij in het midden blijft
     function updateNeedle(){
       if (heading == null || targetBearing == null) return;
       const diff = (targetBearing - heading + 360) % 360;
@@ -200,11 +221,9 @@
     }
 
     /* ========= COMPASS ========= */
-    function startCompass(){
-      if (typeof DeviceOrientationEvent === "undefined"){
-        statusEl.textContent="Geen kompas-toegang.";
-        return;
-      }
+    function attachOrientationListener() {
+      if (orientationActive) return;
+      orientationActive = true;
 
       function onOrientation(ev){
         if (ev.webkitCompassHeading != null){
@@ -215,19 +234,37 @@
         updateNeedle();
       }
 
+      window.addEventListener("deviceorientation", onOrientation, true);
+    }
+
+    function startCompass(){
+      if (typeof DeviceOrientationEvent === "undefined"){
+        statusEl.textContent="Geen kompas-toegang.";
+        return;
+      }
+
+      // iOS: heeft requestPermission nodig NA een user-gesture
       if (typeof DeviceOrientationEvent.requestPermission === "function"){
-        DeviceOrientationEvent.requestPermission()
-          .then(resp=>{
-            if (resp==="granted"){
-              window.addEventListener("deviceorientation", onOrientation, true);
-              // status wordt door GPS verder bijgewerkt
-            } else {
-              statusEl.textContent="Kompas-toegang geweigerd.";
-            }
-          })
-          .catch(()=>statusEl.textContent="Kompas-toegang mislukt.");
+        // Toon knop om het kompas expliciet in te schakelen
+        enableCompassBtn.style.display = "inline-block";
+        enableCompassBtn.addEventListener("click", () => {
+          DeviceOrientationEvent.requestPermission()
+            .then(resp=>{
+              if (resp==="granted"){
+                attachOrientationListener();
+                enableCompassBtn.style.display = "none";
+                if (!unlocked) statusEl.textContent = "";
+              } else {
+                statusEl.textContent="Kompas-toegang geweigerd.";
+              }
+            })
+            .catch(()=>{
+              statusEl.textContent="Kompas-toegang mislukt.";
+            });
+        });
       } else {
-        window.addEventListener("deviceorientation", onOrientation, true);
+        // Android / andere browsers: direct luisteren
+        attachOrientationListener();
       }
     }
 

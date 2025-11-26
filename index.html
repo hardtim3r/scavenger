@@ -15,7 +15,7 @@
       color: #f5f5f5;
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       min-height: 100vh;
-      overflow: hidden; 
+      overflow: hidden;
     }
 
     .chat-wrapper {
@@ -53,7 +53,7 @@
       display: flex;
       flex-direction: column;
       gap: 4px;
-      padding-bottom: 2rem;
+      padding-bottom: 4rem; /* ruimte voor de eindknop */
     }
 
     .chat-line {
@@ -117,16 +117,67 @@
       to { opacity: 1; transform: translateY(0); }
     }
 
-    /* --- EINDKNOOP --- */
-    .final-button-container {
+    /* --- START OVERLAY --- */
+    .intro-overlay {
       position: absolute;
       inset: 0;
-      background: rgba(5, 6, 10, 0.96);
-      display: none;          /* verschijnt pas aan het eind */
+      background: radial-gradient(circle at top, rgba(255,255,255,0.05), transparent 55%),
+                  #05060a;
+      display: flex;
       align-items: center;
       justify-content: center;
-      animation: fadeIn 0.5s ease forwards;
-      padding-bottom: 10vh;
+      z-index: 10;
+    }
+
+    .intro-card {
+      max-width: 520px;
+      padding: 1.75rem 1.5rem 1.5rem;
+      border-radius: 24px;
+      background: rgba(10,12,25,0.96);
+      box-shadow: 0 18px 60px rgba(0,0,0,0.7);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-title {
+      font-size: 1.4rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .intro-text {
+      font-size: 0.95rem;
+      opacity: 0.9;
+      line-height: 1.5;
+      margin-bottom: 1.4rem;
+    }
+
+    .intro-button {
+      border: none;
+      padding: 0.75rem 1.8rem;
+      border-radius: 999px;
+      background: #ffffff;
+      color: #05060a;
+      font-weight: 600;
+      font-size: 1rem;
+      cursor: pointer;
+      box-shadow: 0 10px 30px rgba(255,255,255,0.15);
+    }
+
+    .intro-button:active {
+      transform: scale(0.97);
+    }
+
+    /* --- EINDKNOP (sticky onderin, blokkeert scroll niet) --- */
+    .final-button-container {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      display: none;
+      justify-content: center;
+      padding: 0.5rem 1rem 1.5rem;
+      background: linear-gradient(to top, rgba(5,6,10,0.95), rgba(5,6,10,0));
+      z-index: 5;
     }
 
     .final-button {
@@ -144,11 +195,17 @@
     .final-button:active {
       transform: scale(0.97);
     }
-
   </style>
 </head>
 <body>
   <div class="chat-wrapper">
+    <!-- START OVERLAY -->
+    <div id="intro-overlay" class="intro-overlay">
+      <div class="intro-card">
+        <button id="start-button" class="intro-button">Start</button>
+      </div>
+    </div>
+
     <div id="status" class="status">Momentje, ik spoel even terug…</div>
     <input type="file" id="file-input" accept=".txt" />
 
@@ -171,6 +228,9 @@
     const finalContainer = document.getElementById("final-container");
     const finalButton = document.getElementById("final-button");
 
+    const introOverlay = document.getElementById("intro-overlay");
+    const startButton = document.getElementById("start-button");
+
     // URL van de volgende pagina:
     const NEXT_URL = "volgende.html";
 
@@ -180,6 +240,9 @@
     let senderB = null;
     let lastShownDate = null;
 
+    let started = false;
+    let messagesReady = false;
+
     // Timings
     const WARMUP_COUNT = 13;
     const COOLDOWN_COUNT = 14;
@@ -187,13 +250,20 @@
     const FAST_MIN_DELAY = 4;
     const FAST_MAX_DELAY = 40;
 
+    function tryStartPlayback() {
+      if (started && messagesReady && index === 0) {
+        setTimeout(showNext, 800);
+      }
+    }
+
     // fetch chat
     fetch("chat.txt")
       .then(r => { if (!r.ok) throw new Error(); return r.text(); })
       .then(text => {
         messages = parseWhatsAppExport(text);
-        statusEl.textContent = "";
-        setTimeout(showNext, 800);
+        messagesReady = true;
+        statusEl.textContent = started ? "" : "Bestand staat klaar. Druk op Start wanneer je wilt.";
+        tryStartPlayback();
       })
       .catch(() => enableFileFallback());
 
@@ -202,7 +272,13 @@
       fileInput.style.display = "block";
       fileInput.addEventListener("change", () => {
         const reader = new FileReader();
-        reader.onload = e => { messages = parseWhatsAppExport(e.target.result); statusEl.textContent = ""; fileInput.style.display="none"; setTimeout(showNext,800); };
+        reader.onload = e => {
+          messages = parseWhatsAppExport(e.target.result);
+          messagesReady = true;
+          statusEl.textContent = started ? "" : "Berichten staan klaar. Druk op Start wanneer je wilt.";
+          fileInput.style.display = "none";
+          tryStartPlayback();
+        };
         reader.readAsText(fileInput.files[0], "utf-8");
       });
     }
@@ -246,7 +322,9 @@
     function showNext() {
       if (index >= messages.length) {
         // Laat de final button zien na 2s
-        setTimeout(() => { finalContainer.style.display = "flex"; }, 2000);
+        setTimeout(() => {
+          finalContainer.style.display = "flex";
+        }, 2000);
         finalButton.onclick = () => { window.location.href = NEXT_URL; };
         return;
       }
@@ -296,6 +374,18 @@
     function escapeHtml(str) {
       return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
     }
+
+    // START-knop logica
+    startButton.addEventListener("click", () => {
+      started = true;
+      introOverlay.style.display = "none";
+      if (!messagesReady) {
+        statusEl.textContent = "Momentje, ik laad onze berichten…";
+      } else {
+        statusEl.textContent = "";
+      }
+      tryStartPlayback();
+    });
   </script>
 </body>
 </html>
