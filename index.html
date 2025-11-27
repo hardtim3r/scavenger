@@ -255,7 +255,7 @@
       .then(text => {
         messages = parseWhatsAppExport(text);
         messagesReady = true;
-        statusEl.textContent = started ? "" : "Bestand staat klaar…";
+        statusEl.textContent = started ? "" : "";
         tryStartPlayback();
       })
       .catch(() => enableFileFallback());
