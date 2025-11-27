@@ -44,6 +44,30 @@
       100% { box-shadow: inset 0 0 25px rgba(140,90,255,0.15); }
     }
 
+    /* Klok-stippen */
+    .ticks {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    .tick {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.8);
+      box-shadow: 0 0 8px rgba(255,255,255,0.5);
+    }
+
+    .tick.major {
+      width: 8px;
+      height: 8px;
+      background: #ffffff;
+    }
+
     /* Wijzer (naald) – draait om het punt in het midden */
     .needle {
       position: absolute;
@@ -55,7 +79,6 @@
       transform-origin: 50% 100%; /* onderste punt is draaipunt */
       border-radius: 2px;
       filter: drop-shadow(0 0 10px #a985ff);
-      /* geen CSS-transition, we smoothen in JS */
     }
 
     /* stip in het midden */
@@ -122,6 +145,24 @@
 
   <div class="compass-wrapper">
     <div class="ring"></div>
+
+    <!-- klok-stippen -->
+    <div class="ticks">
+      <!-- We centreren eerst (translate(-50%, -50%)), dan draaien, dan naar buiten (translateY(-140px)) -->
+      <div class="tick major" style="transform: translate(-50%, -50%) rotate(0deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(30deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(60deg) translateY(-140px);"></div>
+      <div class="tick major" style="transform: translate(-50%, -50%) rotate(90deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(120deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(150deg) translateY(-140px);"></div>
+      <div class="tick major" style="transform: translate(-50%, -50%) rotate(180deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(210deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(240deg) translateY(-140px);"></div>
+      <div class="tick major" style="transform: translate(-50%, -50%) rotate(270deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(300deg) translateY(-140px);"></div>
+      <div class="tick"        style="transform: translate(-50%, -50%) rotate(330deg) translateY(-140px);"></div>
+    </div>
+
     <div id="needle" class="needle"></div>
     <div class="center-dot"></div>
 
@@ -137,7 +178,7 @@
     const TARGET_LAT = 51.4500556;
     const TARGET_LON = 5.454944;
     const UNLOCK_RADIUS_METERS = 40;
-    const NEXT_URL = "eind.html"; // <-- aanpassen naar jouw volgende pagina
+    const NEXT_URL = "eind.html";
 
     /* ========= STATE ========= */
     const needle = document.getElementById('needle');
@@ -145,17 +186,16 @@
     const continueBtn = document.getElementById('continue-btn');
     const enableCompassBtn = document.getElementById('enable-compass-btn');
 
-    let heading = null;          // ruwe heading van device
+    let heading = null;
     let userLat = null;
     let userLon = null;
-    let targetBearing = null;    // richting naar doel
+    let targetBearing = null;
     let distanceToTarget = null;
     let unlocked = false;
     let orientationActive = false;
 
-    // Smooth angle state
-    let displayAngle = 0;        // wat we nu tekenen
-    let desiredAngle = 0;        // waar we naartoe willen
+    let displayAngle = 0;
+    let desiredAngle = 0;
 
     /* ========= HELPERS ========= */
     function toRad(x){return x*Math.PI/180;}
@@ -182,7 +222,6 @@
       return (toDeg(Math.atan2(y,x))+360)%360;
     }
 
-    // Shortest signed angle difference (-180..+180)
     function shortestAngleDiff(from, to) {
       let diff = (to - from + 540) % 360 - 180;
       return diff;
@@ -236,9 +275,9 @@
 
       function onOrientation(ev){
         if (ev.webkitCompassHeading != null){
-          heading = ev.webkitCompassHeading; // iOS – 0 is noord
+          heading = ev.webkitCompassHeading; // iOS
         } else if (ev.alpha != null){
-          heading = ev.alpha; // Android – 0 ongeveer noord (afhankelijk van device)
+          heading = ev.alpha; // Android
         }
         updateDesiredAngle();
       }
@@ -252,7 +291,6 @@
         return;
       }
 
-      // iOS: requestPermission nodig NA user-gesture
       if (typeof DeviceOrientationEvent.requestPermission === "function"){
         enableCompassBtn.style.display = "inline-block";
         enableCompassBtn.addEventListener("click", () => {
@@ -271,26 +309,20 @@
             });
         });
       } else {
-        // Android / andere browsers
         attachOrientationListener();
       }
     }
 
-    /* ========= ANIMATIE-LOOP VOOR SMOOTH ROTATION ========= */
+    /* ========= ANIMATIE-LOOP ========= */
     function animateNeedle() {
-      // beweeg displayAngle langzaam naar desiredAngle via kortste route
       const diff = shortestAngleDiff(displayAngle, desiredAngle);
-      const SMOOTHING = 0.15; // hoger = sneller, lager = smoother
+      const SMOOTHING = 0.15;
       displayAngle += diff * SMOOTHING;
-
       needle.style.transform = `translate(-50%, -100%) rotate(${displayAngle}deg)`;
-
       requestAnimationFrame(animateNeedle);
     }
 
     /* ========= INIT ========= */
-
-    // init-positie wijzer
     displayAngle = 0;
     desiredAngle = 0;
     needle.style.transform = "translate(-50%, -100%) rotate(0deg)";
