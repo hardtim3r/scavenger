@@ -2,7 +2,7 @@
 <html lang="nl">
 <head>
   <meta charset="UTF-8" />
-  <title>Scavenger Hunt</title>
+  <title>Scavenger Hunt – Strijp</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <style>
     body {
@@ -20,6 +20,9 @@
       margin: auto;
       max-width: 480px;
       text-align: center;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
 
     .card {
@@ -28,6 +31,14 @@
       padding: 24px 22px 20px;
       box-shadow: 0 18px 60px rgba(0,0,0,0.6);
       backdrop-filter: blur(12px);
+      transition: background 0.4s ease, box-shadow 0.4s ease, transform 0.4s ease;
+    }
+
+    /* Groenige state bij succes */
+    .card.success {
+      background: radial-gradient(circle at top, rgba(107,255,181,0.16), rgba(15,18,40,0.98));
+      box-shadow: 0 24px 70px rgba(0,0,0,0.9);
+      transform: translateY(-2px);
     }
 
     .title {
@@ -39,24 +50,20 @@
     }
 
     .riddle {
-      font-size: 1.4rem;
+      font-size: 1.4rem; /* zelfde grootte als je huidige versie, niet kleiner */
       line-height: 1.8;
       margin-bottom: 10px;
       opacity: 0.96;
       cursor: pointer; /* triple tap voor dev-modus */
     }
 
+    .code-line {
+      display: block; /* forceer twee regels */
+    }
+
     .code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
       letter-spacing: 0.12em;
-      white-space: pre-line;
-    }
-
-    .hint-small {
-      font-size: 0.75rem;
-      opacity: 0.55;
-      margin-top: 2px;
-      margin-bottom: 10px;
     }
 
     .hint {
@@ -92,17 +99,84 @@
       color: #fff;
       font-size: 14px;
     }
+
+    /* INTRO OVERLAY */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%), #050814;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .intro-box {
+      max-width: 420px;
+      padding: 28px 24px 24px;
+      border-radius: 24px;
+      background: rgba(5, 7, 18, 0.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-text {
+      font-size: 1.9rem;
+      line-height: 1.45;
+      font-weight: 500;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .intro-text.fade-in {
+      animation: introFade 0.8s ease forwards;
+    }
+
+    @keyframes introFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* FADE-OUT VAN HELE WRAPPER AAN HET EIND */
+    .fade-out {
+      animation: fadeOutScreen 1.4s ease forwards;
+    }
+
+    @keyframes fadeOutScreen {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="wrapper">
-    <div class="card">
 
+  <!-- INTRO OVERLAY -->
+  <div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+      <p id="intro-text" class="intro-text"></p>
+    </div>
+  </div>
+
+  <div class="wrapper" id="main-wrapper">
+    <div class="card" id="card">
 
       <!-- De gecodeerde zin -->
       <p id="riddle" class="riddle code">
-12 9 5 6 4 5   14 15 15 9 20
-14 5 5 13 20   1 6 19 3 8 5 9 4
+        <span class="code-line">12 9 5 6 4 5   14 15 15 9 20</span>
+        <span class="code-line">14 5 5 13 20   1 6 19 3 8 5 9 4</span>
       </p>
 
       <p class="hint">
@@ -129,12 +203,59 @@
     const NEXT_URL = "kompas.html";
 
     // ========= ELEMENTEN =========
-    const submitBtn  = document.getElementById("submit-btn");
-    const statusEl   = document.getElementById("status");
-    const devSkipBtn = document.getElementById("dev-skip");
-    const riddleEl   = document.getElementById("riddle");
+    const submitBtn   = document.getElementById("submit-btn");
+    const statusEl    = document.getElementById("status");
+    const devSkipBtn  = document.getElementById("dev-skip");
+    const riddleEl    = document.getElementById("riddle");
+    const mainWrapper = document.getElementById("main-wrapper");
+    const cardEl      = document.getElementById("card");
+
+    const introOverlay = document.getElementById("intro-overlay");
+    const introTextEl  = document.getElementById("intro-text");
 
     let devEnabled = false;
+
+    // ========= INTRO SEQUENCE =========
+    const introMessages = [
+      "Ben benieuwd hoe lang we nu al bezig zijn",
+      "En of je de vorige vraag moeilijk vond",
+      "Waarschijnlijk niet",
+      "iK bEn NiEt sLiM",
+      "My ass.",
+      "Met je master.",
+      "Love you",
+      "x"
+    ];
+
+    function runIntro() {
+      let idx = 0;
+      const DISPLAY_TIME = 3400;
+
+      function nextMessage() {
+        if (idx >= introMessages.length) {
+          introOverlay.style.transition = "opacity 0.45s ease";
+          introOverlay.style.opacity = "0";
+          setTimeout(() => {
+            introOverlay.style.display = "none";
+            mainWrapper.style.opacity = "1";
+            mainWrapper.style.transform = "translateY(0)";
+          }, 450);
+          return;
+        }
+
+        introTextEl.classList.remove("fade-in");
+        void introTextEl.offsetWidth; // reflow
+        introTextEl.textContent = introMessages[idx];
+        introTextEl.classList.add("fade-in");
+
+        idx++;
+        setTimeout(nextMessage, DISPLAY_TIME);
+      }
+
+      nextMessage();
+    }
+
+    window.addEventListener("load", runIntro);
 
     // ========= HELPERS =========
     function toRad(x) { return x * Math.PI / 180; }
@@ -152,8 +273,18 @@
     }
 
     function handleSuccess() {
-      // Direct door naar kompas
-      window.location.href = NEXT_URL;
+      statusEl.textContent = "Dit klopt.";
+      submitBtn.disabled = true;
+      cardEl.classList.add("success");
+
+      // groen momentje laten zien, dan fade-out + redirect
+      setTimeout(() => {
+        mainWrapper.classList.add("fade-out");
+
+        setTimeout(() => {
+          window.location.href = NEXT_URL;
+        }, 1400 + 1000); // zelfde timing als andere pagina's
+      }, 1200);
     }
 
     // ========= LOCATIE-LOGICA =========

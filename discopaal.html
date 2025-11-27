@@ -3,23 +3,38 @@
 <head>
   <meta charset="UTF-8" />
   <title>Scavenger Hunt – Discopaal</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <!-- Zoom beperken & niet kunnen inzoomen/dubbel-tap -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no" />
   <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden; /* geen algemene scroll */
+    }
+
     body {
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       background: #050814;
       color: #f7f7ff;
-      margin: 0;
-      padding: 16px;
       display: flex;
-      min-height: 100vh;
+      align-items: center;
+      justify-content: center;
       box-sizing: border-box;
+      touch-action: none; /* geen pinch / double-tap zoom */
     }
 
     .wrapper {
-      margin: auto;
       max-width: 480px;
+      width: calc(100vw - 32px);
       text-align: center;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
 
     .card {
@@ -28,6 +43,14 @@
       padding: 24px 22px 24px;
       box-shadow: 0 18px 60px rgba(0,0,0,0.6);
       backdrop-filter: blur(12px);
+      transition: background 0.4s ease, box-shadow 0.4s ease, transform 0.4s ease;
+    }
+
+    /* Groenige highlight bij goed antwoord */
+    .card.success {
+      background: radial-gradient(circle at top, rgba(107,255,181,0.16), rgba(15,18,40,0.98));
+      box-shadow: 0 24px 70px rgba(0,0,0,0.9);
+      transform: translateY(-2px);
     }
 
     .question {
@@ -36,7 +59,7 @@
       margin-bottom: 18px;
       opacity: 0.96;
       font-weight: 600;
-      cursor: pointer; /* voor triple-tap dev */
+      cursor: pointer; /* triple-tap dev */
     }
 
     .hint {
@@ -140,13 +163,81 @@
       75% { transform: translateX(-2px); }
       100% { transform: translateX(0); }
     }
+
+    /* INTRO OVERLAY (zoals bij bellen.html) */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%), #050814;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .intro-box {
+      max-width: 420px;
+      padding: 28px 24px 24px;
+      border-radius: 24px;
+      background: rgba(5, 7, 18, 0.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-text {
+      font-size: 1.9rem;
+      line-height: 1.45;
+      font-weight: 500;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .intro-text.fade-in {
+      animation: introFade 0.8s ease forwards;
+    }
+
+    @keyframes introFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* FADE-OUT VAN DE HELE CONTENT AAN HET EIND */
+    .fade-out {
+      animation: fadeOutScreen 1.4s ease forwards;
+    }
+
+    @keyframes fadeOutScreen {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+    }
   </style>
 </head>
 <body>
-  <div class="wrapper">
-    <div class="card">
+
+  <!-- INTRO OVERLAY -->
+  <div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+      <p id="intro-text" class="intro-text"></p>
+    </div>
+  </div>
+
+  <div class="wrapper" id="wrapper">
+    <div class="card" id="card">
       <p id="question" class="question">
-        Hoeveel lampjes zitten er op de discopaal?
+        Hoeveel lichtjes zitten er op de discopaal?
       </p>
 
       <div class="wheel-wrapper">
@@ -162,8 +253,6 @@
 
       <p id="status" class="status"></p>
 
-      <button id="continue-btn">Ga verder</button>
-
       <!-- DEV SKIP -->
       <button id="dev-skip">DEV: Skip naar volgende</button>
     </div>
@@ -172,35 +261,95 @@
 <script>
   // ====== CONFIG ======
   const CORRECT_ANSWER = 300;
-  const NEXT_URL = "kompas.html"; // <-- pas dit aan naar waar je hierna heen wilt
+  const NEXT_URL = "volgende.html"; // pas dit aan als je route verandert
 
   const answerSelect = document.getElementById("answer-select");
   const submitBtn = document.getElementById("submit-btn");
   const statusEl = document.getElementById("status");
-  const continueBtn = document.getElementById("continue-btn");
   const devSkipBtn = document.getElementById("dev-skip");
   const questionEl = document.getElementById("question");
+  const cardEl = document.getElementById("card");
+  const wrapperEl = document.getElementById("wrapper");
 
-  // ====== OPTIONS VULLEN (0 t/m 400) ======
+  const introOverlay = document.getElementById("intro-overlay");
+  const introTextEl  = document.getElementById("intro-text");
+
+  /* ===== INTRO SEQUENCE (zoals bellen) ===== */
+  const introMessages = [
+    "Lekker gedaan pik",
+    "Nu even over de discopaal",
+    "Hoeveel lichtjes heeft dat ding?",
+    "Je mag het ook wel opzoeken",
+    "Dit is een warming-up anyway"
+  ];
+
+  function runIntro() {
+    let idx = 0;
+    const DISPLAY_TIME = 3400;
+
+    function nextMessage() {
+      if (idx >= introMessages.length) {
+        introOverlay.style.transition = "opacity 0.45s ease";
+        introOverlay.style.opacity = "0";
+        setTimeout(() => {
+          introOverlay.style.display = "none";
+          wrapperEl.style.opacity = "1";
+          wrapperEl.style.transform = "translateY(0)";
+        }, 450);
+        return;
+      }
+
+      introTextEl.classList.remove("fade-in");
+      void introTextEl.offsetWidth; // reflow
+      introTextEl.textContent = introMessages[idx];
+      introTextEl.classList.add("fade-in");
+
+      idx++;
+      setTimeout(nextMessage, DISPLAY_TIME);
+    }
+
+    nextMessage();
+  }
+
+  window.addEventListener("load", runIntro);
+
+  // ====== OPTIONS VULLEN (150 t/m 400) ======
   (function fillOptions() {
     for (let i = 150; i <= 400; i++) {
       const opt = document.createElement("option");
       opt.value = i;
       opt.textContent = i;
-      if (i === 150) opt.selected = true; // standaard op 300, kun je weghalen als je wilt
       answerSelect.appendChild(opt);
     }
+    // Standaard ergens in de buurt zetten, bv. 250
+    answerSelect.value = "150";
   })();
 
   function handleSuccess() {
-    statusEl.textContent = "BP!";
-    continueBtn.style.display = "inline-block";
+    statusEl.textContent = "Lekker bro";
+    cardEl.classList.add("success");
     submitBtn.disabled = true;
     answerSelect.disabled = true;
+
+    // Kleine delay om de groene state te laten zien
+    setTimeout(() => {
+      wrapperEl.classList.add("fade-out");
+
+      // fade duurt 1.4s → daarna nog 1s extra voor de vibe
+      setTimeout(() => {
+        window.location.href = NEXT_URL;
+      }, 1400 + 1000);
+
+    }, 1200);
   }
 
-  function handleWrong() {
-    statusEl.textContent = "Nee bro...";
+  function handleWrong(value) {
+    if (value < CORRECT_ANSWER) {
+      statusEl.textContent = "Het is hoger.";
+    } else {
+      statusEl.textContent = "Het is lager.";
+    }
+
     // kleine shake
     answerSelect.classList.remove("shake");
     void answerSelect.offsetWidth; // force reflow
@@ -209,15 +358,16 @@
 
   submitBtn.addEventListener("click", () => {
     const value = parseInt(answerSelect.value, 10);
+    if (isNaN(value)) {
+      statusEl.textContent = "Kies eerst een getal.";
+      return;
+    }
+
     if (value === CORRECT_ANSWER) {
       handleSuccess();
     } else {
-      handleWrong();
+      handleWrong(value);
     }
-  });
-
-  continueBtn.addEventListener("click", () => {
-    window.location.href = NEXT_URL;
   });
 
   // ====== DEV MODE (triple tap op vraag) ======

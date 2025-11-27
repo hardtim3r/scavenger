@@ -21,6 +21,9 @@
       position: relative;
       width: 300px;
       height: 300px;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
     }
 
     /* Buitenring met glow */
@@ -139,16 +142,66 @@
       display: none; /* alleen tonen als requestPermission bestaat */
       background: rgba(255,255,255,0.9);
     }
+
+    /* INTRO OVERLAY */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%), #050814;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .intro-box {
+      max-width: 420px;
+      padding: 28px 24px 24px;
+      border-radius: 24px;
+      background: rgba(5, 7, 18, 0.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-text {
+      font-size: 1.9rem;
+      line-height: 1.45;
+      font-weight: 500;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .intro-text.fade-in {
+      animation: introFade 0.8s ease forwards;
+    }
+
+    @keyframes introFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
   </style>
 </head>
 <body>
+
+  <!-- INTRO OVERLAY -->
+  <div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+      <p id="intro-text" class="intro-text"></p>
+    </div>
+  </div>
 
   <div class="compass-wrapper">
     <div class="ring"></div>
 
     <!-- klok-stippen -->
     <div class="ticks">
-      <!-- We centreren eerst (translate(-50%, -50%)), dan draaien, dan naar buiten (translateY(-140px)) -->
       <div class="tick major" style="transform: translate(-50%, -50%) rotate(0deg) translateY(-140px);"></div>
       <div class="tick"        style="transform: translate(-50%, -50%) rotate(30deg) translateY(-140px);"></div>
       <div class="tick"        style="transform: translate(-50%, -50%) rotate(60deg) translateY(-140px);"></div>
@@ -185,6 +238,10 @@
     const statusEl = document.getElementById('status');
     const continueBtn = document.getElementById('continue-btn');
     const enableCompassBtn = document.getElementById('enable-compass-btn');
+    const compassWrapper = document.querySelector('.compass-wrapper');
+
+    const introOverlay = document.getElementById('intro-overlay');
+    const introTextEl  = document.getElementById('intro-text');
 
     let heading = null;
     let userLat = null;
@@ -196,6 +253,41 @@
 
     let displayAngle = 0;
     let desiredAngle = 0;
+
+    /* ========= INTRO SEQUENCE ========= */
+    const introMessages = [
+      "Hey Emi",
+      "Time will show",
+      "Right?"
+    ];
+
+    function runIntro() {
+      let idx = 0;
+      const DISPLAY_TIME = 3400;
+
+      function nextMessage() {
+        if (idx >= introMessages.length) {
+          introOverlay.style.transition = "opacity 0.45s ease";
+          introOverlay.style.opacity = "0";
+          setTimeout(() => {
+            introOverlay.style.display = "none";
+            compassWrapper.style.opacity = "1";
+            compassWrapper.style.transform = "translateY(0)";
+          }, 450);
+          return;
+        }
+
+        introTextEl.classList.remove("fade-in");
+        void introTextEl.offsetWidth; // reflow
+        introTextEl.textContent = introMessages[idx];
+        introTextEl.classList.add("fade-in");
+
+        idx++;
+        setTimeout(nextMessage, DISPLAY_TIME);
+      }
+
+      nextMessage();
+    }
 
     /* ========= HELPERS ========= */
     function toRad(x){return x*Math.PI/180;}
@@ -327,9 +419,12 @@
     desiredAngle = 0;
     needle.style.transform = "translate(-50%, -100%) rotate(0deg)";
 
-    startGeo();
-    startCompass();
-    animateNeedle();
+    window.addEventListener("load", () => {
+      runIntro();
+      startGeo();
+      startCompass();
+      animateNeedle();
+    });
 
     continueBtn.addEventListener("click", ()=>{
       window.location.href = NEXT_URL;
