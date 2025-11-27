@@ -164,15 +164,20 @@
 
     /* FADE-OUT ANIMATIE AAN HET EIND */
     .fade-out {
-      animation: fadeOutScreen 0.6s ease forwards;
+      animation: fadeOutScreen 1.4s ease forwards; /* langere fade */
     }
 
     @keyframes fadeOutScreen {
-      to {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      100% {
         opacity: 0;
-        transform: scale(0.98);
+        transform: scale(0.97);
       }
     }
+
   </style>
 </head>
 <body>
@@ -295,10 +300,14 @@
         // eerst 2s laten staan, dan fade-out + redirect
         setTimeout(() => {
           chatWrapper.classList.add("fade-out");
+
+          // fade duurt 1400ms → daarna nog 1 extra seconde wachten:
           setTimeout(() => {
             window.location.href = NEXT_URL;
-          }, 600); // matcht duration van fadeOutScreen
-        }, 2000);
+          }, 1400 + 1000);
+
+        }, 2000); // 2s wachten na laatste bericht
+
         return;
       }
 
