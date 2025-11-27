@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scavenger Hunt – Discopaal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050814;
+      color: #f7f7ff;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      min-height: 100vh;
+      box-sizing: border-box;
+    }
+
+    .wrapper {
+      margin: auto;
+      max-width: 480px;
+      text-align: center;
+    }
+
+    .card {
+      background: rgba(15, 18, 40, 0.92);
+      border-radius: 24px;
+      padding: 24px 22px 24px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px);
+    }
+
+    .question {
+      font-size: 1.2rem;
+      line-height: 1.6;
+      margin-bottom: 18px;
+      opacity: 0.96;
+      font-weight: 600;
+      cursor: pointer; /* voor triple-tap dev */
+    }
+
+    .hint {
+      font-size: 0.85rem;
+      opacity: 0.8;
+      margin-top: 4px;
+      margin-bottom: 16px;
+      line-height: 1.4;
+    }
+
+    .wheel-wrapper {
+      margin: 12px 0 8px;
+    }
+
+    .wheel-label {
+      font-size: 0.9rem;
+      opacity: 0.9;
+      margin-bottom: 6px;
+    }
+
+    select {
+      width: 100%;
+      max-width: 260px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.2);
+      background: rgba(6, 9, 26, 0.96);
+      color: #f7f7ff;
+      font-size: 18px;
+      text-align-last: center;
+      -moz-text-align-last: center;
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      position: relative;
+    }
+
+    .wheel-container {
+      display: flex;
+      justify-content: center;
+      position: relative;
+    }
+
+    .wheel-container::after {
+      content: "▼";
+      position: absolute;
+      right: calc(50% - 110px);
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.7rem;
+      pointer-events: none;
+      opacity: 0.7;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #ffb3ff, #9f9cff);
+      color: #141414;
+      font-weight: 600;
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      margin-top: 12px;
+      min-height: 1.4em;
+    }
+
+    #continue-btn {
+      display: none;
+      margin-top: 18px;
+    }
+
+    /* DEV-SKIP */
+    #dev-skip {
+      display: none;
+      margin-top: 10px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-size: 14px;
+    }
+
+    /* kleine “shake” animatie bij fout antwoord */
+    .shake {
+      animation: shake 0.25s ease-in-out;
+    }
+
+    @keyframes shake {
+      0% { transform: translateX(0); }
+      25% { transform: translateX(-4px); }
+      50% { transform: translateX(4px); }
+      75% { transform: translateX(-2px); }
+      100% { transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <p id="question" class="question">
+        Hoeveel lampjes zitten er op de discopaal?
+      </p>
+
+      <div class="wheel-wrapper">
+        <div class="wheel-label">Jouw antwoord:</div>
+        <div class="wheel-container">
+          <select id="answer-select">
+            <!-- opties worden met JS gevuld -->
+          </select>
+        </div>
+      </div>
+
+      <button id="submit-btn">Bevestig</button>
+
+      <p id="status" class="status"></p>
+
+      <button id="continue-btn">Ga verder</button>
+
+      <!-- DEV SKIP -->
+      <button id="dev-skip">DEV: Skip naar volgende</button>
+    </div>
+  </div>
+
+<script>
+  // ====== CONFIG ======
+  const CORRECT_ANSWER = 300;
+  const NEXT_URL = "kompas.html"; // <-- pas dit aan naar waar je hierna heen wilt
+
+  const answerSelect = document.getElementById("answer-select");
+  const submitBtn = document.getElementById("submit-btn");
+  const statusEl = document.getElementById("status");
+  const continueBtn = document.getElementById("continue-btn");
+  const devSkipBtn = document.getElementById("dev-skip");
+  const questionEl = document.getElementById("question");
+
+  // ====== OPTIONS VULLEN (0 t/m 400) ======
+  (function fillOptions() {
+    for (let i = 150; i <= 400; i++) {
+      const opt = document.createElement("option");
+      opt.value = i;
+      opt.textContent = i;
+      if (i === 150) opt.selected = true; // standaard op 300, kun je weghalen als je wilt
+      answerSelect.appendChild(opt);
+    }
+  })();
+
+  function handleSuccess() {
+    statusEl.textContent = "BP!";
+    continueBtn.style.display = "inline-block";
+    submitBtn.disabled = true;
+    answerSelect.disabled = true;
+  }
+
+  function handleWrong() {
+    statusEl.textContent = "Nee bro...";
+    // kleine shake
+    answerSelect.classList.remove("shake");
+    void answerSelect.offsetWidth; // force reflow
+    answerSelect.classList.add("shake");
+  }
+
+  submitBtn.addEventListener("click", () => {
+    const value = parseInt(answerSelect.value, 10);
+    if (value === CORRECT_ANSWER) {
+      handleSuccess();
+    } else {
+      handleWrong();
+    }
+  });
+
+  continueBtn.addEventListener("click", () => {
+    window.location.href = NEXT_URL;
+  });
+
+  // ====== DEV MODE (triple tap op vraag) ======
+  let taps = [];
+  questionEl.addEventListener("click", () => {
+    const now = Date.now();
+    taps.push(now);
+    if (taps.length > 3) taps.shift();
+
+    if (taps.length === 3 && taps[2] - taps[0] < 900) {
+      devSkipBtn.style.display = "inline-block";
+      statusEl.textContent = "(DEV-modus actief)";
+    }
+  });
+
+  devSkipBtn.addEventListener("click", () => {
+    window.location.href = NEXT_URL;
+  });
+</script>
+
+</body>
+</html>
