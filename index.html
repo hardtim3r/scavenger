@@ -30,6 +30,8 @@
       flex-direction: column;
       padding: 0.75rem 0.75rem 1rem;
       position: relative;
+      opacity: 1;
+      transform: translateY(0);
     }
 
     .status {
@@ -160,38 +162,21 @@
       transform: scale(0.97);
     }
 
-    /* --- EINDKNOP (sticky onderin, blokkeert scroll niet) --- */
-    .final-button-container {
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      display: none;
-      justify-content: center;
-      padding: 0.25rem 1rem 0.75rem;
-      background: linear-gradient(to top, rgba(5,6,10,0.85), rgba(5,6,10,0));
-      z-index: 5;
+    /* FADE-OUT ANIMATIE AAN HET EIND */
+    .fade-out {
+      animation: fadeOutScreen 0.6s ease forwards;
     }
 
-    .final-button {
-      border: none;
-      padding: 14px 26px;
-      border-radius: 999px;
-      background: #ffffff;
-      color: #05060a;
-      font-size: 1.05rem;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 6px 25px rgba(255,255,255,0.15);
-    }
-
-    .final-button:active {
-      transform: scale(0.97);
+    @keyframes fadeOutScreen {
+      to {
+        opacity: 0;
+        transform: scale(0.98);
+      }
     }
   </style>
 </head>
 <body>
-  <div class="chat-wrapper">
+  <div class="chat-wrapper" id="chat-wrapper">
     <!-- START OVERLAY -->
     <div id="intro-overlay" class="intro-overlay">
       <div class="intro-card">
@@ -205,11 +190,6 @@
     <div class="chat-window" id="chat-window">
       <div id="chat-container" class="chat-container"></div>
     </div>
-
-    <!-- FINAL BUTTON -->
-    <div id="final-container" class="final-button-container">
-      <button id="final-button" class="final-button">Ga verder</button>
-    </div>
   </div>
 
   <script>
@@ -217,15 +197,12 @@
     const chatWindow = document.getElementById("chat-window");
     const statusEl = document.getElementById("status");
     const fileInput = document.getElementById("file-input");
-
-    const finalContainer = document.getElementById("final-container");
-    const finalButton = document.getElementById("final-button");
-
     const introOverlay = document.getElementById("intro-overlay");
     const startButton = document.getElementById("start-button");
+    const chatWrapper = document.getElementById("chat-wrapper");
 
-    // URL van de volgende pagina:
-    const NEXT_URL = "index.html";
+    // Volgende pagina:
+    const NEXT_URL = "bellen.html";
 
     let messages = [];
     let index = 0;
@@ -314,11 +291,14 @@
 
     function showNext() {
       if (index >= messages.length) {
-        // Laat de final button zien na 2s
+        // Alle berichten zijn geweest:
+        // eerst 2s laten staan, dan fade-out + redirect
         setTimeout(() => {
-          finalContainer.style.display = "flex";
+          chatWrapper.classList.add("fade-out");
+          setTimeout(() => {
+            window.location.href = NEXT_URL;
+          }, 600); // matcht duration van fadeOutScreen
         }, 2000);
-        finalButton.onclick = () => { window.location.href = NEXT_URL; };
         return;
       }
 
@@ -378,7 +358,10 @@
     }
 
     function escapeHtml(str) {
-      return str.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      return str
+        .replace(/&/g,"&amp;")
+        .replace(/</g,"&lt;")
+        .replace(/>/g,"&gt;");
     }
 
     // START-knop logica
