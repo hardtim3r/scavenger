@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scavenger Hunt – Puzzel</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no"
+  />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #050814;
+      color: #f7f7ff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      touch-action: none; /* geen pinch/double-tap zoom */
+    }
+
+    .wrapper {
+      max-width: 480px;
+      width: calc(100vw - 32px);
+      text-align: center;
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+
+    .card {
+      background: rgba(15, 18, 40, 0.92);
+      border-radius: 24px;
+      padding: 24px 22px 24px;
+      box-shadow: 0 18px 60px rgba(0,0,0,0.6);
+      backdrop-filter: blur(12px);
+      transition:
+        background 0.45s ease,
+        box-shadow 0.45s ease,
+        transform 0.45s ease,
+        opacity 0.7s ease;
+    }
+
+    .card.solved {
+      background: radial-gradient(circle at top, rgba(107,255,181,0.16), rgba(15,18,40,0.98));
+      box-shadow: 0 24px 80px rgba(0,0,0,0.9);
+      transform: translateY(-2px);
+    }
+
+    .card.fade-out {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+
+    .question {
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+      opacity: 0.96;
+      cursor: pointer; /* voor dev-tap */
+    }
+
+    /* Shell: bord + tray */
+    .puzzle-area {
+      position: relative;
+      width: 240px;
+      height: 340px; /* 240 bord + ~100 tray */
+      margin: 0 auto 10px;
+      touch-action: none;
+    }
+
+    /* Het echte bord (bovenste 240×240) */
+    .board {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 240px;
+      height: 240px;
+      border-radius: 20px;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.10), #141726);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow:
+        0 0 14px rgba(0,0,0,0.9),
+        inset 0 0 22px rgba(0,0,0,0.8);
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    /* Optische tray-zone onderin */
+    .tray-hint {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 90px;
+      border-radius: 18px;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), #0b0d19);
+      border: 1px solid rgba(255,255,255,0.06);
+      opacity: 0.7;
+      pointer-events: none;
+    }
+
+    .piece {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      background-image: url("puzzel.png");
+      background-size: 240px 240px;
+      border-radius: 8px;
+      box-shadow: 0 12px 30px rgba(0,0,0,0.8);
+      cursor: grab;
+      transition: box-shadow 0.15s ease, transform 0.15s ease;
+      touch-action: none;
+      z-index: 2;
+    }
+
+    .piece:active {
+      cursor: grabbing;
+      transform: scale(1.03);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.9);
+    }
+
+    .piece.locked {
+      cursor: default;
+      box-shadow: 0 0 14px rgba(107,255,181,0.9);
+      z-index: 1;
+    }
+
+    .piece.locked-pop {
+      animation: pop 0.18s ease-out;
+    }
+
+    @keyframes pop {
+      0%   { transform: scale(1); }
+      50%  { transform: scale(1.06); }
+      100% { transform: scale(1); }
+    }
+
+    .status {
+      font-size: 0.9rem;
+      margin-top: 10px;
+      min-height: 1.4em;
+      opacity: 0.9;
+    }
+
+    button {
+      border: none;
+      border-radius: 999px;
+      padding: 12px 24px;
+      font-size: 15px;
+      cursor: pointer;
+      margin-top: 16px;
+      background: linear-gradient(135deg, #ffb3ff, #9f9cff);
+      color: #141414;
+      font-weight: 600;
+      display: none; /* alleen zichtbaar na oplossen / dev */
+    }
+
+    button:active {
+      transform: scale(0.96);
+    }
+
+    /* DEV-SKIP */
+    #dev-skip {
+      display: none;
+      margin-top: 10px;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+      font-size: 14px;
+    }
+
+    /* INTRO OVERLAY */
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%), #050814;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .intro-box {
+      max-width: 420px;
+      padding: 28px 24px 24px;
+      border-radius: 24px;
+      background: rgba(5, 7, 18, 0.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-text {
+      font-size: 1.9rem;
+      line-height: 1.45;
+      font-weight: 500;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .intro-text.fade-in {
+      animation: introFade 0.8s ease forwards;
+    }
+
+    @keyframes introFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- INTRO OVERLAY -->
+  <div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+      <p id="intro-text" class="intro-text"></p>
+    </div>
+  </div>
+
+  <div class="wrapper" id="wrapper">
+    <div class="card" id="card">
+      <p id="question" class="question">Los de puzzel op.</p>
+
+      <div id="puzzle-area" class="puzzle-area">
+        <div class="board"></div>
+        <div class="tray-hint"></div>
+        <!-- stukjes komen hier in JS -->
+      </div>
+
+      <p id="status" class="status"></p>
+
+      <button id="continue-btn">Ga verder</button>
+
+      <button id="dev-skip">DEV: Skip naar volgende</button>
+    </div>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    const ROWS = 4;
+    const COLS = 4;
+    const BOARD_SIZE = 240;
+    const SHELL_HEIGHT = 340;           // zelfde als .puzzle-area height
+    const TRAY_TOP = BOARD_SIZE + 10;   // start Y tray
+    const TRAY_HEIGHT = SHELL_HEIGHT - TRAY_TOP - 10;
+    const PIECE_W = BOARD_SIZE / COLS;
+    const PIECE_H = BOARD_SIZE / ROWS;
+    const SNAP_DISTANCE = 14;
+    const NEXT_URL = "discopaal.html";
+
+    const puzzleArea  = document.getElementById("puzzle-area");
+    const statusEl    = document.getElementById("status");
+    const cardEl      = document.getElementById("card");
+    const continueBtn = document.getElementById("continue-btn");
+    const devSkipBtn  = document.getElementById("dev-skip");
+    const questionEl  = document.getElementById("question");
+    const wrapper     = document.getElementById("wrapper");
+
+    const introOverlay = document.getElementById("intro-overlay");
+    const introTextEl  = document.getElementById("intro-text");
+
+    let pieces = [];
+    let placedCount = 0;
+    const lockedGrid = Array.from({ length: ROWS }, () =>
+      Array(COLS).fill(false)
+    );
+
+    /* ===== INTRO SEQUENCE ===== */
+    const introMessages = [
+      "Enne?",
+      "Ja hoi je spreekt met Job",
+      "Emi kan je me helpen",
+      "Ik heb geen diploma"
+    ];
+
+    function runIntro() {
+      let idx = 0;
+      const DISPLAY_TIME = 3400;
+
+      function nextMessage() {
+        if (idx >= introMessages.length) {
+          introOverlay.style.transition = "opacity 0.45s ease";
+          introOverlay.style.opacity = "0";
+          setTimeout(() => {
+            introOverlay.style.display = "none";
+            wrapper.style.opacity = "1";
+            wrapper.style.transform = "translateY(0)";
+          }, 450);
+          return;
+        }
+
+        introTextEl.classList.remove("fade-in");
+        void introTextEl.offsetWidth; // reflow
+        introTextEl.textContent = introMessages[idx];
+        introTextEl.classList.add("fade-in");
+
+        idx++;
+        setTimeout(nextMessage, DISPLAY_TIME);
+      }
+
+      nextMessage();
+    }
+
+    /* ===== PUZZLE ===== */
+    function initPuzzle() {
+      const positions = [];
+
+      for (let row = 0; row < ROWS; row++) {
+        for (let col = 0; col < COLS; col++) {
+          positions.push({ row, col });
+        }
+      }
+
+      // random volgorde voor trayspread
+      const shuffled = [...positions].sort(() => Math.random() - 0.5);
+
+      positions.forEach((pos, index) => {
+        const piece = document.createElement("div");
+        piece.className = "piece";
+        piece.dataset.row = pos.row;
+        piece.dataset.col = pos.col;
+
+        const bgX = -pos.col * PIECE_W;
+        const bgY = -pos.row * PIECE_H;
+        piece.style.backgroundPosition = `${bgX}px ${bgY}px`;
+
+        // startpositie: in de tray-zone onder het bord
+        const start = shuffled[index];
+        const randOffsetX = (Math.random() - 0.5) * 12;
+        const randOffsetY = (Math.random() - 0.5) * 12;
+
+        let left = start.col * PIECE_W + randOffsetX;
+        let top  = TRAY_TOP + randOffsetY;
+
+        left = Math.max(0, Math.min(left, BOARD_SIZE - PIECE_W));
+        top  = Math.max(TRAY_TOP, Math.min(top, TRAY_TOP + TRAY_HEIGHT - PIECE_H));
+
+        piece.style.left = `${left}px`;
+        piece.style.top  = `${top}px`;
+
+        enableDrag(piece);
+        puzzleArea.appendChild(piece);
+        pieces.push(piece);
+      });
+
+      statusEl.textContent = "";
+    }
+
+    function enableDrag(piece) {
+      let offsetX = 0;
+      let offsetY = 0;
+      let dragging = false;
+
+      piece.addEventListener("pointerdown", e => {
+        if (piece.classList.contains("locked")) return;
+
+        dragging = true;
+        piece.setPointerCapture(e.pointerId);
+
+        // vooraan in de stacking
+        puzzleArea.appendChild(piece);
+
+        const rect = piece.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+      });
+
+      piece.addEventListener("pointermove", e => {
+        if (!dragging) return;
+        const areaRect = puzzleArea.getBoundingClientRect();
+
+        let newLeft = e.clientX - areaRect.left - offsetX;
+        let newTop  = e.clientY - areaRect.top  - offsetY;
+
+        // binnen hele shell houden
+        newLeft = Math.max(0, Math.min(newLeft, BOARD_SIZE - PIECE_W));
+        newTop  = Math.max(0, Math.min(newTop, SHELL_HEIGHT - PIECE_H));
+
+        piece.style.left = `${newLeft}px`;
+        piece.style.top  = `${newTop}px`;
+      });
+
+      piece.addEventListener("pointerup", e => {
+        if (!dragging) return;
+        dragging = false;
+        piece.releasePointerCapture(e.pointerId);
+        checkSnap(piece);
+      });
+
+      piece.addEventListener("pointercancel", e => {
+        dragging = false;
+        piece.releasePointerCapture(e.pointerId);
+      });
+    }
+
+    function checkSnap(piece) {
+      const row = parseInt(piece.dataset.row, 10);
+      const col = parseInt(piece.dataset.col, 10);
+      const targetLeft = col * PIECE_W;
+      const targetTop  = row * PIECE_H;
+
+      const currentLeft = parseFloat(piece.style.left);
+      const currentTop  = parseFloat(piece.style.top);
+
+      // alleen snappen als het centrum binnen het bord valt
+      const centerY = currentTop + PIECE_H / 2;
+      if (centerY > BOARD_SIZE) {
+        // onder het bord → gewoon vrij laten
+        return;
+      }
+
+      const dx = currentLeft - targetLeft;
+      const dy = currentTop - targetTop;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+
+      if (dist <= SNAP_DISTANCE) {
+        // check of vakje al bezet is
+        if (lockedGrid[row][col]) {
+          // vak is al vol, niet locken
+          statusEl.textContent = "Dat vakje is al gevuld.";
+          return;
+        }
+
+        piece.style.left = `${targetLeft}px`;
+        piece.style.top  = `${targetTop}px`;
+        piece.classList.add("locked", "locked-pop");
+        lockedGrid[row][col] = true;
+        placedCount++;
+
+        setTimeout(() => piece.classList.remove("locked-pop"), 220);
+
+        checkComplete();
+      }
+    }
+
+    function checkComplete() {
+      if (placedCount === pieces.length) {
+        statusEl.textContent = "BP!";
+        cardEl.classList.add("solved");
+        continueBtn.style.display = "inline-block";
+
+        setTimeout(() => {
+          cardEl.classList.add("fade-out");
+          setTimeout(() => {
+            window.location.href = NEXT_URL;
+          }, 1400);
+        }, 1500);
+      } else if (placedCount > 0) {
+        statusEl.textContent = `Nog ${pieces.length - placedCount} stukje(s) te gaan.`;
+      } else {
+        statusEl.textContent = "";
+      }
+    }
+
+    // DEV-skip via triple-tap op de vraag
+    let taps = [];
+    questionEl.addEventListener("click", () => {
+      const now = Date.now();
+      taps.push(now);
+      if (taps.length > 3) taps.shift();
+
+      if (taps.length === 3 && taps[2] - taps[0] < 900) {
+        devSkipBtn.style.display = "inline-block";
+        statusEl.textContent = "(DEV-modus actief)";
+      }
+    });
+
+    devSkipBtn.addEventListener("click", () => {
+      window.location.href = NEXT_URL;
+    });
+
+    continueBtn.addEventListener("click", () => {
+      window.location.href = NEXT_URL;
+    });
+
+    window.addEventListener("load", () => {
+      runIntro();
+      initPuzzle();
+    });
+  </script>
+</body>
+</html>
