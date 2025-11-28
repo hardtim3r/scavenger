@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <title>Scavenger Hunt – Eind</title>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no"
+  />
+  <style>
+    :root {
+      color-scheme: dark;
+    }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      background: #050814;
+      color: #f7f7ff;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      touch-action: none; /* geen pinch/double-tap zoom */
+    }
+
+    /* We hebben geen inhoud verder, alleen de intro-overlay */
+
+    .intro-overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at top, rgba(255,255,255,0.06), transparent 55%), #050814;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+
+    .intro-box {
+      max-width: 480px;
+      padding: 28px 24px 24px;
+      border-radius: 24px;
+      background: rgba(5, 7, 18, 0.96);
+      box-shadow: 0 20px 60px rgba(0,0,0,0.8);
+      text-align: center;
+      backdrop-filter: blur(14px);
+    }
+
+    .intro-text {
+      font-size: 1.9rem;
+      line-height: 1.45;
+      font-weight: 500;
+      margin: 0;
+      opacity: 0;
+    }
+
+    .intro-text.fade-in {
+      animation: introFade 0.8s ease forwards;
+    }
+
+    @keyframes introFade {
+      from {
+        opacity: 0;
+        transform: translateY(6px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* Fade-out van de hele overlay op het einde */
+    .intro-overlay.fade-out {
+      animation: overlayFadeOut 1.4s ease forwards;
+    }
+
+    @keyframes overlayFadeOut {
+      0% {
+        opacity: 1;
+        transform: scale(1);
+      }
+      100% {
+        opacity: 0;
+        transform: scale(0.97);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Alleen de intro-overlay, verder geen content -->
+  <div class="intro-overlay" id="intro-overlay">
+    <div class="intro-box">
+      <p id="intro-text" class="intro-text"></p>
+    </div>
+  </div>
+
+  <script>
+    const introOverlay = document.getElementById("intro-overlay");
+    const introTextEl  = document.getElementById("intro-text");
+
+    const introMessages = [
+      "Emi",
+      "You made it",
+      "Aangezien ik een sukkel ben, sta ik",
+      "Hoogstwaarschijnlijk",
+      "Ziek zenuwachtig langs je nu",
+      "En was ik",
+      "Voor minimaal de laatste 20 minuten",
+      "Weer niet te genieten",
+      "Waarschijnlijk kijk ik je niet eens aan nu",
+      "Fucking clown.",
+      "Maar hey",
+      "Thanks for playing",
+      "Nu neem ik het irl weer over",
+      "Ik hou van jou",
+    ];
+
+    function runIntro() {
+      let idx = 0;
+      const DISPLAY_TIME = 3400; // zelfde tempo als de rest
+
+      function nextMessage() {
+        if (idx >= introMessages.length) {
+          // Alle regels zijn geweest -> fade de overlay zelf weg
+          introOverlay.classList.add("fade-out");
+          // Daarna blijft alleen de donkere achtergrond over
+          // (geen redirect, geen extra content)
+          return;
+        }
+
+        introTextEl.classList.remove("fade-in");
+        void introTextEl.offsetWidth; // reflow for restart
+        introTextEl.textContent = introMessages[idx];
+        introTextEl.classList.add("fade-in");
+
+        idx++;
+        setTimeout(nextMessage, DISPLAY_TIME);
+      }
+
+      nextMessage();
+    }
+
+    window.addEventListener("load", runIntro);
+  </script>
+</body>
+</html>
