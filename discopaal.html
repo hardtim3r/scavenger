@@ -410,9 +410,10 @@
   /* ===== INTRO SEQUENCE ===== */
   const introMessages = [
     "Lekker gedaan pik",
+    "Okay so",
     "Aangezien een Emi-guess vrijwel altijd on the dot is",
-    "Of je hebt dit natuurlijk al lang opgezocht",
-    "Ik hoop niet dat je tellie explodeert"
+    "Of je hebt dit natuurlijk al lang opgezocht, kan ook",
+    "Ik hoop iig niet dat je tellie explodeert"
   ];
 
   function runIntro() {
@@ -460,7 +461,7 @@
   })();
 
   function handleSuccess() {
-    statusEl.textContent = "Lekker bro";
+    statusEl.textContent = "";
     cardEl.classList.add("success");
     submitBtn.disabled = true;
     answerSelect.disabled = true;
